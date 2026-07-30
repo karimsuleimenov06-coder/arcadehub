@@ -43,6 +43,10 @@ export default async function handler(req, res) {
       if (room.status !== 'waiting') return res.status(400).json({ error: 'Игра уже началась' })
       if (room.players[1].username) return res.status(400).json({ error: 'Комната полна' })
       room.players[1] = { username, ready: false, wScore: 0 }
+      room.status = 'playing'
+      room.turn = 0
+      room.moves = []
+      if (room.game === 'tictactoe') room.state = { board: Array(9).fill(null), winner: null }
       return res.status(200).json({ ok: true, room })
     }
 

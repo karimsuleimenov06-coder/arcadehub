@@ -115,12 +115,14 @@ export default function TicTacToeGame() {
 
   // Create online room
   const createRoom = async () => {
-    const r = await apiCall({ action: 'create', game: 'tictactoe', username: localStorage.getItem('onlineUser') || 'Игрок1' })
+    const uname = localStorage.getItem('onlineUser') || 'Игрок1';
+    localStorage.setItem('onlineUser', uname);
+    const r = await apiCall({ action: 'create', game: 'tictactoe', username: uname })
     if (r.ok) {
       setRoomCode(r.room.id); setMySymbol("X"); setOpponent(""); setOnlineStatus("lobby"); setBoard(Array(9).fill(null)); setWinner(null);
       pollRef.current = setInterval(async () => {
         const s = await apiCall({ action: 'status', roomCode: r.room.id })
-        if (s.ok && s.room.players[1].username) { setOpponent(s.room.players[1].username); setOnlineStatus("playing"); setTurn("X"); stopPoll() }
+        if (s.ok && s.room.status === 'playing') { setOpponent(s.room.players[1].username); setOnlineStatus("playing"); setTurn("X"); stopPoll() }
       }, 1500);
     }
   };
@@ -128,13 +130,11 @@ export default function TicTacToeGame() {
   // Join online room
   const joinRoom = async (code: string) => {
     const uname = localStorage.getItem('onlineUser') || 'Игрок2';
+    localStorage.setItem('onlineUser', uname);
     const r = await apiCall({ action: 'join', roomCode: code, username: uname })
     if (r.ok) {
       setRoomCode(code.toUpperCase()); setMySymbol("O"); setOpponent(r.room.players[0].username); setOnlineStatus("playing");
-      localStorage.setItem('onlineUser', uname);
       setBoard(Array(9).fill(null)); setWinner(null);
-      // Start game
-      await apiCall({ action: 'start', roomCode: code.toUpperCase() })
       setTurn("X");
     } else { alert(r.error) }
   };

@@ -11,7 +11,6 @@ function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-
 function cardStr(c) { return c.rank + c.suit; }
 function cardColor(c) { return c.suit === '♥' || c.suit === '♦' ? 'red' : 'black'; }
 
@@ -28,13 +27,12 @@ function evalHand(cards) {
     if (u[0] - u[4] === 4) straightHigh = u[0];
     else if (u[0] === 14 && u[1] === 5 && u[2] === 4 && u[3] === 3 && u[4] === 2) straightHigh = 5;
   }
-  const isStraight = straightHigh > 0;
   if (isFlush && straightHigh === 14) return { name: 'Роял-флеш', value: 10, kickers: [14] };
-  if (isFlush && isStraight) return { name: 'Стрит-флеш', value: 9, kickers: [straightHigh] };
+  if (isFlush && straightHigh) return { name: 'Стрит-флеш', value: 9, kickers: [straightHigh] };
   if (groups[0].count === 4) return { name: 'Каре', value: 8, kickers: [groups[0].val, groups[1]?.val || 0] };
   if (groups[0].count === 3 && groups[1]?.count === 2) return { name: 'Фулл-хаус', value: 7, kickers: [groups[0].val, groups[1].val] };
   if (isFlush) return { name: 'Флеш', value: 6, kickers: vals };
-  if (isStraight) return { name: 'Стрит', value: 5, kickers: [straightHigh] };
+  if (straightHigh) return { name: 'Стрит', value: 5, kickers: [straightHigh] };
   if (groups[0].count === 3) return { name: 'Сет', value: 4, kickers: [groups[0].val, ...groups.slice(1).map(g => g.val)] };
   if (groups[0].count === 2 && groups[1]?.count === 2) {
     const pv = [groups[0].val, groups[1].val].sort((a, b) => b - a);
@@ -54,157 +52,106 @@ function compareHands(a, b) {
   return 0;
 }
 
-// ---- Game State ----
 let gameState = null;
-let gameMode = null; // 'ai' | 'multi'
 let difficulty = null;
 let timerInterval = null;
 
+const AI_NAMES = ['Alpha','Neo','Luna','Vega','Orion'];
+const AI_AVATARS = ['🤖','🦊','🐉','👾','👽'];
+
+function $(id) { return document.getElementById(id) }
+
 function startAIGame(diff) {
   difficulty = diff;
-  gameMode = 'ai';
   navigate('game');
-  initGame();
+  setTimeout(initGame, 100);
 }
 
 function initGame() {
-  const state = {
-    deck: shuffle(createDeck()),
-    players: [
-      { name: 'Вы', chips: 1000, cards: [], bet: 0, folded: false, allin: false, isAI: false, avatar: '😎' },
-    ],
-    community: [],
-    pot: 0,
-    currentBet: 0,
-    turn: 0,
-    phase: 'preflop',
-    dealer: 0,
-    currentPlayer: 0,
-    lastAction: '',
-    raiseAmount: 20,
-    gameOver: false,
-  };
-
-  const aiNames = ['Alpha', 'Neo', 'Luna'];
-  for (let i = 0; i < 3; i++) {
-    state.players.push({
-      name: aiNames[i],
-      chips: 1000,
-      cards: [],
-      bet: 0,
-      folded: false,
-      allin: false,
-      isAI: true,
-      avatar: ['🤖', '🦊', '🐉'][i],
-    });
+  const count = 6;
+  const dk = shuffle(createDeck());
+  const players = [{ name:'Вы', chips:1000, cards:[], bet:0, folded:false, allin:false, avatar:'😎' }];
+  for (let i = 0; i < count - 1; i++) {
+    players.push({ name:AI_NAMES[i], chips:1000, cards:[], bet:0, folded:false, allin:false, avatar:AI_AVATARS[i] });
   }
+  for (let i = 0; i < count; i++) players[i].cards = [dk.pop(), dk.pop()];
 
-  // Deal hole cards
-  for (let i = 0; i < state.players.length; i++) {
-    state.players[i].cards = [state.deck.pop(), state.deck.pop()];
-  }
+  const pot = 30, currentBet = 20;
+  players[1].chips -= 10; players[1].bet = 10;
+  players[2].chips -= 20; players[2].bet = 20;
 
-  // Blinds
-  state.players[1].chips -= 10; state.players[1].bet = 10;
-  state.players[2].chips -= 20; state.players[2].bet = 20;
-  state.pot = 30;
-  state.currentBet = 20;
-  state.currentPlayer = 3;
-  state.dealer = 0;
-
-  gameState = state;
+  gameState = { deck:dk, players, community:[], pot, currentBet, phase:'preflop', currentPlayer:3, lastAction:'', gameOver:false };
   renderGame();
   startTimer();
-  if (state.currentPlayer > 0) setTimeout(() => aiTurn(), 600);
+  if (gameState.currentPlayer > 0) setTimeout(aiTurn, 600);
 }
 
 function renderGame() {
-  const state = gameState;
-  if (!state) return;
+  const s = gameState;
+  if (!s) return;
+  const el = (id) => { const e = $(id); if (!e) return null; return e; };
 
-  // Pot
-  document.getElementById('pot-display').textContent = state.pot;
+  const potEl = el('pot-display'); if (potEl) potEl.textContent = s.pot;
 
   // Opponents
-  const oppEl = document.getElementById('opponents');
-  oppEl.innerHTML = '';
-  for (let i = 1; i < state.players.length; i++) {
-    const p = state.players[i];
-    const div = document.createElement('div');
-    div.className = `opponent ${state.currentPlayer === i ? 'active' : ''} ${p.folded ? 'opacity-30' : ''}`;
-    div.innerHTML = `
-      <div class="opponent-avatar gradient-border"><span>${p.avatar}</span></div>
-      <span class="opponent-name">${p.name}</span>
-      <span class="opponent-chips">${p.chips}</span>
-      <div class="opponent-cards">
-        <div class="opponent-card"></div>
-        <div class="opponent-card"></div>
-      </div>
-    `;
-    oppEl.appendChild(div);
+  const oppEl = el('opponents');
+  if (oppEl) {
+    oppEl.innerHTML = '';
+    for (let i = 1; i < s.players.length; i++) {
+      const p = s.players[i];
+      const div = document.createElement('div');
+      div.className = `opponent ${s.currentPlayer === i ? 'active' : ''} ${p.folded ? 'opacity-30' : ''}`;
+      div.innerHTML = `<div class="opponent-avatar gradient-border"><span>${p.avatar}</span></div>
+        <span class="opponent-name">${p.name}</span>
+        <span class="opponent-chips">${p.chips}</span>
+        <div class="opponent-cards"><div class="opponent-card"></div><div class="opponent-card"></div></div>`;
+      oppEl.appendChild(div);
+    }
   }
 
-  // Community cards
+  // Community
   const slots = document.querySelectorAll('.card-slot');
   slots.forEach((slot, i) => {
-    if (state.community[i]) {
-      const c = state.community[i];
+    if (s.community[i]) {
+      const c = s.community[i];
       slot.className = `card-slot dealt card ${cardColor(c)}`;
       slot.textContent = cardStr(c);
-    } else {
-      slot.className = 'card-slot';
-      slot.textContent = '';
-    }
+    } else { slot.className = 'card-slot'; slot.textContent = ''; }
   });
 
   // Player cards
-  const player = state.players[0];
-  ['pc-0', 'pc-1'].forEach((id, i) => {
-    const el = document.getElementById(id);
-    if (player.cards[i]) {
-      const c = player.cards[i];
-      el.className = `card dealt ${cardColor(c)}`;
-      el.textContent = cardStr(c);
-    }
+  const player = s.players[0];
+  ['pc-0','pc-1'].forEach((id, i) => {
+    const e = $(id);
+    if (e && player.cards[i]) { const c = player.cards[i]; e.className = `card dealt ${cardColor(c)}`; e.textContent = cardStr(c); }
   });
 
-  // Player chips
-  document.getElementById('player-chips').textContent = player.chips;
+  const chipsEl = el('player-chips'); if (chipsEl) chipsEl.textContent = player.chips;
 
-  // Player status
-  const statusEl = document.getElementById('player-status');
-  if (state.currentPlayer === 0 && !state.gameOver) {
-    statusEl.textContent = 'Ваш ход';
-    statusEl.style.color = 'var(--neon-green)';
-    statusEl.style.animation = 'pulse 1s infinite';
-  } else {
-    statusEl.textContent = state.lastAction || '';
-    statusEl.style.animation = 'none';
+  const statusEl = el('player-status');
+  if (statusEl) {
+    if (s.currentPlayer === 0 && !s.gameOver) { statusEl.textContent = 'Ваш ход'; statusEl.style.color = 'var(--neon-green)'; statusEl.style.animation = 'pulse 1s infinite'; }
+    else { statusEl.textContent = s.lastAction || ''; statusEl.style.animation = 'none'; }
   }
 
   updateActions();
 }
 
 function updateActions() {
-  const state = gameState;
-  if (!state || state.gameOver) { document.getElementById('actions').classList.add('hidden'); return; }
-  if (state.currentPlayer !== 0 || state.players[0].folded || state.players[0].allin) {
-    document.getElementById('actions').classList.add('hidden');
-    return;
-  }
-  document.getElementById('actions').classList.remove('hidden');
-  document.getElementById('raise-control').classList.add('hidden');
+  const s = gameState;
+  const a = $('actions'); if (!a) return;
+  if (!s || s.gameOver) { a.classList.add('hidden'); return; }
+  if (s.currentPlayer !== 0 || s.players[0].folded || s.players[0].allin) { a.classList.add('hidden'); return; }
+  a.classList.remove('hidden');
+  const r = $('raise-control'); if (r) r.classList.add('hidden');
 }
 
 function startTimer() {
   clearInterval(timerInterval);
-  const el = document.getElementById('game-timer');
-  let time = 15;
-  el.textContent = time;
-  el.classList.remove('urgent');
+  const el = $('game-timer'); if (!el) return;
+  let time = 15; el.textContent = time; el.classList.remove('urgent');
   timerInterval = setInterval(() => {
-    time--;
-    el.textContent = time;
+    time--; el.textContent = time;
     if (time <= 5) el.classList.add('urgent');
     if (time <= 0) {
       clearInterval(timerInterval);
@@ -217,243 +164,145 @@ function startTimer() {
 function resetTimer() { clearInterval(timerInterval); startTimer(); }
 
 function playerAction(action) {
-  const state = gameState;
-  if (!state || state.gameOver || state.currentPlayer !== 0) return;
+  const s = gameState;
+  if (!s || s.gameOver || s.currentPlayer !== 0) return;
+  const player = s.players[0];
+  const a = $('actions'); if (a) a.classList.add('hidden');
+  const r = $('raise-control'); if (r) r.classList.add('hidden');
 
-  const player = state.players[0];
-  document.getElementById('actions').classList.add('hidden');
-  document.getElementById('raise-control').classList.add('hidden');
-
-  if (action === 'fold') {
-    player.folded = true;
-    state.lastAction = 'Fold';
-    checkRoundEnd();
-  } else if (action === 'check' || action === 'call') {
-    const callAmount = state.currentBet - player.bet;
-    const amount = Math.min(callAmount, player.chips);
-    player.chips -= amount;
-    player.bet += amount;
-    state.pot += amount;
-    state.lastAction = action === 'check' ? 'Check' : 'Call';
+  if (action === 'fold') { player.folded = true; s.lastAction = 'Fold'; advanceTurn(); }
+  else if (action === 'check' || action === 'call') {
+    const amt = Math.min(s.currentBet - player.bet, player.chips);
+    player.chips -= amt; player.bet += amt; s.pot += amt;
+    s.lastAction = action === 'check' ? 'Check' : 'Call';
     advanceTurn();
-  } else if (action === 'raise' || action === 'allin') {
-    if (action === 'allin') {
-      state.pot += player.chips;
-      player.bet += player.chips;
-      player.chips = 0;
-      player.allin = true;
-      state.lastAction = 'All In';
-      state.currentBet = Math.max(state.currentBet, player.bet);
-      advanceTurn();
-    } else {
-      document.getElementById('raise-control').classList.remove('hidden');
-      const slider = document.getElementById('raise-slider');
-      const minRaise = state.currentBet * 2;
-      slider.min = Math.min(minRaise, player.chips);
-      slider.max = player.chips;
-      slider.value = Math.min(Math.max(50, minRaise), player.chips);
-      document.getElementById('raise-amount').textContent = slider.value;
-      slider.oninput = () => { document.getElementById('raise-amount').textContent = slider.value; };
-      state.raiseAmount = parseInt(slider.value);
-      return;
-    }
+  } else if (action === 'allin') {
+    s.pot += player.chips; player.bet += player.chips; player.chips = 0; player.allin = true;
+    s.lastAction = 'All In'; s.currentBet = Math.max(s.currentBet, player.bet);
+    advanceTurn();
+  } else if (action === 'raise') {
+    const slider = $('raise-slider'); if (!slider) return;
+    const ra = $('raise-amount'); if (!ra) return;
+    const minRaise = s.currentBet * 2;
+    slider.min = Math.min(minRaise, player.chips); slider.max = player.chips;
+    slider.value = Math.min(Math.max(50, minRaise), player.chips);
+    ra.textContent = slider.value;
+    slider.oninput = () => { ra.textContent = slider.value; };
+    if (r) r.classList.remove('hidden');
+    return;
   }
   renderGame();
-  if (!state.gameOver) setTimeout(() => aiTurn(), 800);
+  if (!s.gameOver) setTimeout(aiTurn, 800);
 }
 
 function confirmRaise() {
-  const state = gameState;
-  if (!state) return;
-  const player = state.players[0];
-  const amount = parseInt(document.getElementById('raise-amount').textContent);
-  const totalBet = amount;
-  const callPart = state.currentBet - player.bet;
-  const raisePart = totalBet - callPart;
-  if (player.chips < totalBet) return;
-
-  player.chips -= totalBet;
-  player.bet += totalBet;
-  state.pot += totalBet;
-  state.currentBet = Math.max(state.currentBet, player.bet);
-  state.lastAction = `Рэйз до ${amount}`;
-  document.getElementById('raise-control').classList.add('hidden');
-  advanceTurn();
-  renderGame();
-  if (!state.gameOver) setTimeout(() => aiTurn(), 800);
+  const s = gameState; if (!s) return;
+  const player = s.players[0];
+  const amount = parseInt(($('raise-amount')||{}).textContent) || 50;
+  if (player.chips < amount) return;
+  player.chips -= amount; player.bet += amount; s.pot += amount;
+  s.currentBet = Math.max(s.currentBet, player.bet);
+  s.lastAction = `Рэйз до ${amount}`;
+  const r = $('raise-control'); if (r) r.classList.add('hidden');
+  advanceTurn(); renderGame();
+  if (!s.gameOver) setTimeout(aiTurn, 800);
 }
 
 function aiTurn() {
-  const state = gameState;
-  if (!state || state.gameOver) return;
-  if (state.currentPlayer === 0) return;
-  const p = state.players[state.currentPlayer];
-  if (p.folded || p.allin) { advanceTurn(); if (!state.gameOver) setTimeout(() => aiTurn(), 600); return; }
+  const s = gameState; if (!s || s.gameOver) return;
+  if (s.currentPlayer === 0 || s.players[s.currentPlayer].folded || s.players[s.currentPlayer].allin) return;
+  const p = s.players[s.currentPlayer];
 
-  const hand = evalHand(p.cards.concat(state.community));
-  const mistakeChance = { easy: 0.9, medium: 0.5, hard: 0.15, expert: 0.02 }[difficulty] || 0.5;
+  const mistakeChance = { easy:0.9, medium:0.5, hard:0.15, expert:0.02 }[difficulty] || 0.5;
   const shouldMistake = Math.random() < mistakeChance;
+  const handStr = s.community.length > 0 ? evalHand(p.cards.concat(s.community)).value / 10 : 0.3;
+  const eff = Math.max(0.1, handStr - (shouldMistake ? Math.random() * 0.6 : 0));
+  const callAmt = Math.min(s.currentBet - p.bet, p.chips);
 
-  let action = 'check';
-  let raiseAmt = 0;
-
-  const handStrength = hand.value / 10;
-  const randomFactor = shouldMistake ? Math.random() * 0.6 : 0;
-
-  const callAmount = Math.min(state.currentBet - p.bet, p.chips);
-  const effectiveStrength = Math.max(0.1, handStrength - randomFactor);
-
-  if (effectiveStrength > 0.7 && p.chips > state.currentBet * 3) {
-    action = 'raise';
-    raiseAmt = Math.floor(state.currentBet * 2 + state.pot * 0.3 * effectiveStrength);
-    raiseAmt = Math.min(raiseAmt, p.chips);
-  } else if (effectiveStrength > 0.4 && callAmount <= p.chips * 0.3) {
-    action = 'call';
-  } else if (effectiveStrength > 0.15 && callAmount <= p.chips * 0.15) {
-    action = 'call';
-  } else if (shouldMistake && Math.random() < 0.3) {
-    action = 'call';
-  } else {
-    action = 'fold';
-  }
-
-  if (state.currentBet === p.bet) {
-    action = (effectiveStrength > 0.3 || shouldMistake) ? 'check' : 'fold';
-  }
+  let action = 'check', raiseAmt = 0;
+  if (s.currentBet === p.bet) action = (eff > 0.2 || shouldMistake) ? 'check' : 'fold';
+  else if (eff > 0.65 && p.chips > s.currentBet * 3) { action = 'raise'; raiseAmt = Math.min(Math.floor(s.currentBet * 2 + s.pot * 0.3 * eff), p.chips); }
+  else if (eff > 0.35 && callAmt <= p.chips * 0.3) action = 'call';
+  else if (eff > 0.15 && callAmt <= p.chips * 0.15) action = 'call';
+  else if (shouldMistake && Math.random() < 0.3) action = 'call';
+  else action = 'fold';
 
   if (p.chips <= 0) { advanceTurn(); return; }
 
-  if (action === 'fold') {
-    p.folded = true;
-    state.lastAction = p.name + ' Fold';
-  } else if (action === 'check') {
-    state.lastAction = p.name + ' Check';
-    advanceTurn(); renderGame(); return;
-  } else if (action === 'call') {
-    p.chips -= callAmount;
-    p.bet += callAmount;
-    state.pot += callAmount;
-    state.lastAction = p.name + ' Call';
-  } else if (action === 'raise') {
-    if (raiseAmt >= p.chips) { raiseAmt = p.chips; p.allin = true; }
-    p.chips -= raiseAmt;
-    p.bet += raiseAmt;
-    state.pot += raiseAmt;
-    state.currentBet = Math.max(state.currentBet, p.bet);
-    state.lastAction = p.name + ` Рэйз ${raiseAmt}`;
-  }
+  if (action === 'fold') { p.folded = true; s.lastAction = p.name + ' Fold'; }
+  else if (action === 'check') { s.lastAction = p.name + ' Check'; advanceTurn(); renderGame(); return; }
+  else if (action === 'call') { p.chips -= callAmt; p.bet += callAmt; s.pot += callAmt; s.lastAction = p.name + ' Call'; }
+  else if (action === 'raise') { if (raiseAmt >= p.chips) { raiseAmt = p.chips; p.allin = true; } p.chips -= raiseAmt; p.bet += raiseAmt; s.pot += raiseAmt; s.currentBet = Math.max(s.currentBet, p.bet); s.lastAction = p.name + ' Рэйз ' + raiseAmt; }
 
-  advanceTurn();
-  renderGame();
-  if (!state.gameOver && state.currentPlayer > 0 && !state.players[state.currentPlayer].folded) {
-    setTimeout(() => aiTurn(), 600);
-  }
+  advanceTurn(); renderGame();
+  if (!s.gameOver && s.currentPlayer > 0 && !s.players[s.currentPlayer].folded) setTimeout(aiTurn, 600);
 }
 
 function advanceTurn() {
-  const state = gameState;
-  if (!state) return;
+  const s = gameState; if (!s) return;
   resetTimer();
-  let next = state.currentPlayer;
-  const total = state.players.length;
-  for (let i = 0; i < total; i++) {
-    next = (next + 1) % total;
-    if (!state.players[next].folded && !state.players[next].allin) break;
-  }
-  state.currentPlayer = next;
+  let next = s.currentPlayer;
+  const total = s.players.length;
+  for (let i = 0; i < total; i++) { next = (next + 1) % total; if (!s.players[next].folded && !s.players[next].allin) break; }
+  s.currentPlayer = next;
 
-  // Check if round should advance
-  const active = state.players.filter(p => !p.folded && !p.allin);
+  const active = s.players.filter(p => !p.folded && !p.allin);
   if (active.length <= 1) { endHand(); return; }
 
-  // Check if all active have acted
-  const allActed = state.players.every(p => p.folded || p.allin || p.bet === state.currentBet);
-  if (allActed) {
-    if (state.phase === 'preflop') { dealCommunity(3); state.phase = 'flop'; }
-    else if (state.phase === 'flop') { dealCommunity(1); state.phase = 'turn'; }
-    else if (state.phase === 'turn') { dealCommunity(1); state.phase = 'river'; }
-    else if (state.phase === 'river') { endHand(); return; }
-    state.currentBet = 0;
-    for (const p of state.players) p.bet = 0;
-    state.currentPlayer = state.players.findIndex(p => !p.folded && !p.allin);
-    if (state.currentPlayer < 0) endHand();
-  }
-}
+  const allActed = s.players.every(p => p.folded || p.allin || p.bet === s.currentBet);
+  if (!allActed) return;
 
-function dealCommunity(n) {
-  const state = gameState;
-  if (!state) return;
-  state.deck.pop(); // burn
-  for (let i = 0; i < n && state.deck.length > 0; i++) {
-    state.community.push(state.deck.pop());
-  }
-}
+  if (s.phase === 'preflop') { s.deck.pop(); for (let i=0;i<3 && s.deck.length>0;i++) s.community.push(s.deck.pop()); s.phase = 'flop'; }
+  else if (s.phase === 'flop') { s.deck.pop(); if (s.deck.length>0) s.community.push(s.deck.pop()); s.phase = 'turn'; }
+  else if (s.phase === 'turn') { s.deck.pop(); if (s.deck.length>0) s.community.push(s.deck.pop()); s.phase = 'river'; }
+  else if (s.phase === 'river') { endHand(); return; }
 
-function checkRoundEnd() {
-  const state = gameState;
-  if (!state) return;
-  const active = state.players.filter(p => !p.folded && !p.allin);
-  if (active.length <= 1) { endHand(); return; }
-  advanceTurn();
-  renderGame();
-  if (state.currentPlayer > 0) setTimeout(() => aiTurn(), 600);
+  s.currentBet = 0;
+  for (const p of s.players) p.bet = 0;
+  s.currentPlayer = s.players.findIndex(p => !p.folded && !p.allin);
+  if (s.currentPlayer < 0) endHand();
 }
 
 function endHand() {
-  const state = gameState;
-  if (!state) return;
-  state.gameOver = true;
-  clearInterval(timerInterval);
-  document.getElementById('game-timer').textContent = '--';
+  const s = gameState; if (!s) return;
+  s.gameOver = true; clearInterval(timerInterval);
+  const t = $('game-timer'); if (t) t.textContent = '--';
 
-  const active = state.players.filter(p => !p.folded);
+  const active = s.players.filter(p => !p.folded);
+  if (active.length === 0) { showResult('Ничья', '', false); renderGame(); return; }
 
   let winners = active;
-  if (state.community.length > 0) {
+  if (s.community.length > 0) {
     let best = active[0];
-    for (const p of active) {
-      if (p.folded) continue;
-      if (compareHands(p.cards.concat(state.community), best.cards.concat(state.community)) > 0) best = p;
-    }
-    winners = active.filter(p => !p.folded && compareHands(p.cards.concat(state.community), best.cards.concat(state.community)) === 0);
+    for (const p of active) { if (compareHands(p.cards.concat(s.community), best.cards.concat(s.community)) > 0) best = p; }
+    winners = active.filter(p => compareHands(p.cards.concat(s.community), best.cards.concat(s.community)) === 0);
   }
 
-  const winAmount = Math.floor(state.pot / winners.length);
-  for (const w of winners) w.chips += winAmount;
+  const share = Math.floor(s.pot / winners.length);
+  for (const w of winners) w.chips += share;
 
-  // Show result
-  const modal = document.getElementById('result-modal');
-  const text = document.getElementById('result-text');
-  const handEl = document.getElementById('result-hand');
-
-  let handName = '';
-  if (state.community.length > 0 && !winners[0].folded) {
-    const h = evalHand(winners[0].cards.concat(state.community));
-    handName = h.name;
-  }
-
-  if (winners.some(w => w.name === 'Вы')) {
-    text.className = 'result-text neon-green';
-    text.textContent = `🎉 Вы выиграли ${winAmount}!`;
-    handEl.textContent = handName ? `Комбинация: ${handName}` : '';
-  } else {
-    text.className = 'result-text neon-pink';
-    text.textContent = `😔 Вы проиграли`;
-    handEl.textContent = `Победил ${winners[0]?.name}`;
-  }
-
-  modal.classList.remove('hidden');
+  const hn = s.community.length > 0 ? evalHand(winners[0].cards.concat(s.community)).name : '';
+  const iw = winners.some(w => w.name === 'Вы');
+  showResult(iw ? '🎉 Вы выиграли ' + share + '!' : '😔 Победил ' + winners[0].name, hn ? 'Комбинация: ' + hn : '', iw);
   renderGame();
 }
 
+function showResult(text, hand, win) {
+  const modal = $('result-modal'); const txt = $('result-text'); const h = $('result-hand');
+  if (!modal || !txt) return;
+  txt.className = 'result-text ' + (win ? 'neon-green' : 'neon-pink');
+  txt.textContent = text;
+  if (h) h.textContent = hand || '';
+  modal.classList.remove('hidden');
+}
+
 function closeResult() {
-  document.getElementById('result-modal').classList.add('hidden');
+  const modal = $('result-modal'); if (modal) modal.classList.add('hidden');
   exitGame();
 }
 
 function exitGame() {
-  clearInterval(timerInterval);
-  gameState = null;
-  document.getElementById('raise-control').classList.add('hidden');
+  clearInterval(timerInterval); gameState = null;
+  const r = $('raise-control'); if (r) r.classList.add('hidden');
   navigate('home');
 }
