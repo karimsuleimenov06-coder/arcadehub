@@ -5,9 +5,9 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <header className="relative z-20 glass border-b border-[var(--glass-border)]">
+    <header className="relative z-20 glass border-b border-[var(--glass-border)]" style={{ paddingTop: 'var(--sat)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="flex items-center justify-between h-14 sm:h-20">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-[var(--neon-blue)] to-[var(--neon-purple)] flex items-center justify-center font-orbitron font-bold text-sm sm:text-base text-white group-hover:shadow-[var(--neon-blue)]/50 transition-shadow">
               A
@@ -24,9 +24,6 @@ export default function Header() {
             <Link to="/?section=all-games" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">
               Все игры
             </Link>
-            <Link to="/?section=categories" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">
-              Категории
-            </Link>
             <Link to="/profile" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">
               Профиль
             </Link>
@@ -36,8 +33,9 @@ export default function Header() {
           </nav>
 
           <button
-            className="md:hidden p-2 text-[var(--text-secondary)] hover:text-[var(--neon-blue)]"
+            className="md:hidden p-2 text-[var(--text-secondary)] hover:text-[var(--neon-blue)] active:text-[var(--neon-blue)] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Меню"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {menuOpen ? (
@@ -50,17 +48,17 @@ export default function Header() {
         </div>
 
         {menuOpen && (
-          <nav className="md:hidden pb-4 flex flex-col gap-3">
-            <Link to="/" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors" onClick={() => setMenuOpen(false)}>
+          <nav className="md:hidden pb-4 flex flex-col gap-1">
+            <Link to="/" className="block px-4 py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] active:text-[var(--neon-blue)] rounded-lg hover:bg-[var(--glass-hover)] transition-colors min-h-[44px] flex items-center" onClick={() => setMenuOpen(false)}>
               Главная
             </Link>
-            <Link to="/?section=all-games" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors" onClick={() => setMenuOpen(false)}>
+            <Link to="/?section=all-games" className="block px-4 py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] active:text-[var(--neon-blue)] rounded-lg hover:bg-[var(--glass-hover)] transition-colors min-h-[44px] flex items-center" onClick={() => setMenuOpen(false)}>
               Все игры
             </Link>
-            <Link to="/profile" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors" onClick={() => setMenuOpen(false)}>
+            <Link to="/profile" className="block px-4 py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] active:text-[var(--neon-blue)] rounded-lg hover:bg-[var(--glass-hover)] transition-colors min-h-[44px] flex items-center" onClick={() => setMenuOpen(false)}>
               Профиль
             </Link>
-            <Link to="/settings" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors" onClick={() => setMenuOpen(false)}>
+            <Link to="/settings" className="block px-4 py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] active:text-[var(--neon-blue)] rounded-lg hover:bg-[var(--glass-hover)] transition-colors min-h-[44px] flex items-center" onClick={() => setMenuOpen(false)}>
               Настройки
             </Link>
           </nav>
