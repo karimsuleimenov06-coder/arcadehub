@@ -1,17 +1,23 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
-  const { login, register } = useAuth()
+  const { login, register, user } = useAuth()
   const navigate = useNavigate()
   const [isRegister, setIsRegister] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  if (user) {
+    navigate('/profile', { replace: true })
+    return null
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     if (!username.trim() || !password.trim()) {
@@ -26,11 +32,13 @@ export default function Login() {
       setError('Пароль минимум 4 символа')
       return
     }
-    const ok = isRegister ? register(username, password) : login(username, password)
-    if (ok) {
-      navigate('/profile')
-    } else {
-      setError(isRegister ? 'Имя уже занято' : 'Неверное имя или пароль')
+
+    setLoading(true)
+    const err = isRegister ? await register(username, password) : await login(username, password)
+    setLoading(false)
+
+    if (err) {
+      setError(err)
     }
   }
 
@@ -75,19 +83,30 @@ export default function Login() {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--neon-blue)] to-[var(--neon-purple)] text-white font-semibold text-sm active:scale-[0.98] transition-transform"
+            disabled={loading}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-[var(--neon-blue)] to-[var(--neon-purple)] text-white font-semibold text-sm active:scale-[0.98] transition-transform disabled:opacity-50"
           >
-            {isRegister ? 'Зарегистрироваться' : 'Войти'}
+            {loading ? 'Загрузка...' : isRegister ? 'Зарегистрироваться' : 'Войти'}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <p className="mt-4 text-center text-[10px] text-[var(--text-muted)]">
+          Прогресс сохраняется в облаке. Достаточно войти заново.
+        </p>
+
+        <div className="mt-3 text-center">
           <button
             onClick={() => { setIsRegister(!isRegister); setError('') }}
             className="text-xs text-[var(--text-muted)] hover:text-[var(--neon-blue)] transition-colors"
           >
             {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
           </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[var(--glass-border)] text-center">
+          <Link to="/" className="text-xs text-[var(--text-muted)] hover:text-[var(--neon-blue)] transition-colors">
+            ← На главную
+          </Link>
         </div>
       </div>
     </motion.div>
