@@ -184,12 +184,12 @@ export default function SnakeGame() {
       </div>
 
       {/* D-Pad controls */}
-      <div className="grid grid-cols-3 gap-2 mt-2 select-none touch-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-2 select-none touch-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
         <div />
         <DirButton d="UP" onMove={handleMove} />
         <div />
         <DirButton d="LEFT" onMove={handleMove} />
-        <div className="w-14 h-14 sm:w-16 sm:h-16 glass rounded-xl flex items-center justify-center text-xs text-[var(--text-muted)]">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-xs font-bold text-[var(--neon-green)] bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)]">
           {score}
         </div>
         <DirButton d="RIGHT" onMove={handleMove} />
@@ -197,6 +197,26 @@ export default function SnakeGame() {
         <DirButton d="DOWN" onMove={handleMove} />
         <div />
       </div>
+
+      {/* Swipe area */}
+      <div
+        className="absolute inset-0 z-0 md:hidden"
+        onTouchStart={(e) => {
+          const t = e.touches[0];
+          const el = e.currentTarget.parentElement;
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const cy = r.top + r.height / 2;
+          const dx = t.clientX - cx;
+          const dy = t.clientY - cy;
+          if (Math.abs(dx) > Math.abs(dy)) {
+            handleMove(dx > 0 ? "RIGHT" : "LEFT");
+          } else {
+            handleMove(dy > 0 ? "DOWN" : "UP");
+          }
+        }}
+      />
     </div>
   );
 }
