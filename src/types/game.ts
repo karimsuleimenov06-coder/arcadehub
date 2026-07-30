@@ -26,7 +26,7 @@ export const GAMES: Game[] = [
   { id: 'pong', title: 'Pong', emoji: 'P', description: 'Ретро-теннис с другом или ИИ', category: 'multiplayer', tags: ['классика','спорт'], players: '2', color: '#00ff88' },
   { id: 'tictactoe', title: 'Крестики-нолики', emoji: 'O', description: 'Обыграй ИИ или сыграй с другом', category: 'multiplayer', tags: ['классика','стратегия'], players: '2', color: '#00f3ff' },
   { id: 'solitaire', title: 'Пасьянс', emoji: 'C', description: 'Классический пасьянс', category: 'classic', tags: ['классика','карты'], players: '1', isSoon: true, color: '#9b59b6' },
-  { id: 'poker', title: 'Покер', emoji: 'K', description: 'Виртуальные фишки, без реальных денег', category: 'modern', tags: ['современные','карты'], players: '2-6', isOnline: true, color: '#ff2d95' },
+  { id: 'poker', title: 'Покер', emoji: '🃏', description: 'Виртуальные фишки, без реальных денег', category: 'multiplayer', tags: ['карты','покер'], players: '2', isNew: true, color: '#ff2d95' },
   { id: 'endless-driver', title: 'Endless Driver', emoji: 'E', description: 'Гонки без конца', category: 'modern', tags: ['современные','гонки'], players: '1', isSoon: true, color: '#00f3ff' },
   { id: 'aim-trainer', title: 'Aim Trainer', emoji: 'N', description: 'Прокачай меткость', category: 'modern', tags: ['современные','стрельба'], players: '1', color: '#ff3355' },
   { id: 'space-invaders', title: 'Space Invaders', emoji: 'V', description: 'Отражай атаку пришельцев', category: 'modern', tags: ['современные','аркада'], players: '1', color: '#00ff88' },

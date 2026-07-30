@@ -4,11 +4,13 @@ import { GAMES, getGameById } from "../types/game";
 import SnakeGame from "../games/Snake";
 import TicTacToeGame from "../games/TicTacToe";
 import PongGame from "../games/Pong";
+import PokerGame from "../games/Poker";
 
 const gameComponents: Record<string, React.FC> = {
   snake: SnakeGame,
   tictactoe: TicTacToeGame,
   pong: PongGame,
+  poker: PokerGame,
 };
 
 export default function GamePage() {

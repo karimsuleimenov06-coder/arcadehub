@@ -9,6 +9,13 @@ const WINNERS = [
   [0,4,8],[2,4,6],
 ];
 
+type Difficulty = "easy" | "medium" | "hard";
+
+const DIFF_LABELS: Record<Difficulty, string> = { easy: "Новичок", medium: "Любитель", hard: "Профи" };
+const DIFF_ORDER: Difficulty[] = ["easy", "medium", "hard"];
+
+const DIFF_MISTAKE: Record<Difficulty, number> = { easy: 0.9, medium: 0.5, hard: 0.01 };
+
 function checkWinner(b: Board): Player | "draw" | null {
   for (const [a,c,d] of WINNERS) {
     if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
@@ -17,7 +24,7 @@ function checkWinner(b: Board): Player | "draw" | null {
   return null;
 }
 
-function aiMove(b: Board): number {
+function bestMove(b: Board): number {
   const empty = b.map((c, i) => c === null ? i : null).filter(i => i !== null) as number[];
   if (empty.length === 0) return -1;
   for (const i of empty) {
@@ -34,31 +41,39 @@ function aiMove(b: Board): number {
   return empty[Math.floor(Math.random() * empty.length)];
 }
 
+function aiMove(b: Board, diff: Difficulty): number {
+  const empty = b.map((c, i) => c === null ? i : null).filter(i => i !== null) as number[];
+  if (empty.length === 0) return -1;
+  if (Math.random() < DIFF_MISTAKE[diff]) {
+    return empty[Math.floor(Math.random() * empty.length)];
+  }
+  return bestMove(b);
+}
+
 export default function TicTacToeGame() {
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [turn, setTurn] = useState<Player>("X");
   const [winner, setWinner] = useState<null | Player | "draw">(null);
   const [mode, setMode] = useState<"ai" | "local">("ai");
+  const [diff, setDiff] = useState<Difficulty>("medium");
   const [score, setScore] = useState({ X: 0, O: 0, draw: 0 });
   const boardRef = useRef(board);
   boardRef.current = board;
   const turnRef = useRef(turn);
   turnRef.current = turn;
 
-  useEffect(() => {
-    setWinner(checkWinner(board));
-  }, [board]);
+  useEffect(() => { setWinner(checkWinner(board)); }, [board]);
 
   useEffect(() => {
     if (mode !== "ai" || turn !== "O" || winner) return;
     const timer = setTimeout(() => {
-      const move = aiMove(boardRef.current);
+      const move = aiMove(boardRef.current, diff);
       if (move < 0) return;
       setBoard(prev => { const n = [...prev]; n[move] = "O"; return n; });
       setTurn("X");
     }, 400);
     return () => clearTimeout(timer);
-  }, [mode, turn, winner]);
+  }, [mode, turn, winner, diff]);
 
   const handleClick = useCallback((i: number) => {
     if (boardRef.current[i] !== null || checkWinner(boardRef.current) || (mode === "ai" && turnRef.current === "O")) return;
@@ -66,26 +81,15 @@ export default function TicTacToeGame() {
     setTurn(prev => prev === "X" ? "O" : "X");
   }, [mode]);
 
-  const restart = () => {
-    setBoard(Array(9).fill(null));
-    setTurn("X");
-    setWinner(null);
-  };
+  const restart = () => { setBoard(Array(9).fill(null)); setTurn("X"); setWinner(null); };
 
   const switchMode = (m: "ai" | "local") => {
-    setMode(m);
-    setBoard(Array(9).fill(null));
-    setTurn("X");
-    setWinner(null);
-    setScore({ X: 0, O: 0, draw: 0 });
+    setMode(m); setBoard(Array(9).fill(null)); setTurn("X"); setWinner(null); setScore({ X: 0, O: 0, draw: 0 });
   };
 
   useEffect(() => {
     if (!winner) return;
-    setScore(prev => {
-      const key = winner === "draw" ? "draw" : winner;
-      return { ...prev, [key]: prev[key] + 1 };
-    });
+    setScore(prev => { const key = winner === "draw" ? "draw" : winner; return { ...prev, [key]: prev[key] + 1 }; });
   }, [winner]);
 
   return (
@@ -101,6 +105,23 @@ export default function TicTacToeGame() {
         </button>
       </div>
 
+      {mode === "ai" && (
+        <div className="flex gap-1.5">
+          {DIFF_ORDER.map(d => (
+            <button key={d} onClick={() => { setDiff(d); restart(); }}
+              className={`px-3 py-1 text-[11px] rounded-lg transition-all ${
+                diff === d
+                  ? d === "easy" ? "glass neon-text-green shadow-[0_0_12px_rgba(0,255,136,0.15)]"
+                    : d === "medium" ? "glass neon-text-yellow shadow-[0_0_12px_rgba(255,221,0,0.15)]"
+                    : "glass neon-text-pink shadow-[0_0_12px_rgba(255,45,149,0.15)]"
+                  : "text-[var(--text-muted)]"
+              }`}>
+              {DIFF_LABELS[d]}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
         <span>X: <strong className="neon-text-blue">{score.X}</strong></span>
         <span>Ничья: <strong>{score.draw}</strong></span>
@@ -109,17 +130,14 @@ export default function TicTacToeGame() {
 
       <div className="grid grid-cols-3 gap-2 p-3 glass rounded-xl" style={{ width: "min(300px, calc(100vw - 60px))", aspectRatio: "1" }}>
         {board.map((cell, i) => (
-          <button
-            key={i}
-            onClick={() => handleClick(i)}
+          <button key={i} onClick={() => handleClick(i)}
             disabled={!!winner || (mode === "ai" && turn === "O")}
             className="rounded-lg text-3xl sm:text-4xl font-bold active:scale-95 transition-all disabled:cursor-not-allowed"
             style={{
               background: cell ? "var(--glass-bg)" : "rgba(0,243,255,0.03)",
               color: cell === "X" ? "var(--neon-blue)" : "var(--neon-pink)",
               boxShadow: cell === "X" ? "0 0 12px rgba(0,243,255,0.2)" : cell === "O" ? "0 0 12px rgba(255,45,149,0.2)" : "none",
-            }}
-          >
+            }}>
             {cell}
           </button>
         ))}
@@ -131,9 +149,7 @@ export default function TicTacToeGame() {
         {!winner && <span className="text-[var(--text-secondary)]">Ход: <strong className={turn === "X" ? "neon-text-blue" : "neon-text-pink"}>{turn}</strong></span>}
       </div>
 
-      <button onClick={restart} className="px-6 py-2 glass rounded-lg text-sm neon-text-green hover:neon-glow-green transition-all active:scale-95">
-        Заново
-      </button>
+      <button onClick={restart} className="px-6 py-2 glass rounded-lg text-sm neon-text-green hover:neon-glow-green transition-all active:scale-95">Заново</button>
     </div>
   );
 }
