@@ -17,7 +17,7 @@ type AuthContextType = {
   loading: boolean
 }
 
-const API = '/api/auth.ts'
+const API = '/api/auth.mjs'
 
 const AuthContext = createContext<AuthContextType | null>(null)
 

@@ -88,9 +88,9 @@ const server = http.createServer(async (req, res) => {
     const parsedBody = body ? JSON.parse(body) : {}
 
     let result = null
-    if (path === '/api/auth.ts') {
+    if (path === '/api/auth.mjs') {
       result = await handleAuth(parsedBody)
-    } else if (path === '/api/progress.ts') {
+    } else if (path === '/api/progress.mjs') {
       if (req.method === 'POST') {
         result = await handleProgressPost(parsedBody, req.headers.authorization, req.method)
       } else {

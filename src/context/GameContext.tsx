@@ -26,7 +26,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   history: [],
 }
 
-const PROGRESS_API = '/api/progress.ts'
+const PROGRESS_API = '/api/progress.mjs'
 
 const GameContext = createContext<GameContextType | null>(null)
 
