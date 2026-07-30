@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
 
 export default function Header() {
+  const { user } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
 
@@ -38,8 +40,19 @@ export default function Header() {
           <nav className="hidden md:flex items-center gap-6">
             <Link to="/" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">Главная</Link>
             <Link to="/?section=all-games" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">Все игры</Link>
-            <Link to="/profile" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">Профиль</Link>
             <Link to="/settings" className="text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">Настройки</Link>
+            {user ? (
+              <Link to="/profile" className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--neon-blue)] transition-colors">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[var(--neon-blue)] to-[var(--neon-purple)] flex items-center justify-center text-[10px] font-bold text-white">
+                  {user.nickname[0].toUpperCase()}
+                </div>
+                <span>{user.nickname}</span>
+              </Link>
+            ) : (
+              <Link to="/login" className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-[var(--neon-blue)] to-[var(--neon-purple)] text-white text-xs font-semibold">
+                Войти
+              </Link>
+            )}
           </nav>
 
           <button
@@ -62,7 +75,7 @@ export default function Header() {
             {[
               { to: '/', label: 'Главная', icon: 'H' },
               { to: '/?section=all-games', label: 'Все игры', icon: 'G' },
-              { to: '/profile', label: 'Профиль', icon: 'P' },
+              ...(user ? [{ to: '/profile', label: 'Профиль', icon: user.nickname[0].toUpperCase() }] : []),
               { to: '/settings', label: 'Настройки', icon: 'S' },
             ].map((item) => (
               <Link
