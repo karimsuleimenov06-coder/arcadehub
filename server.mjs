@@ -1,5 +1,6 @@
 import http from 'http'
 import crypto from 'crypto'
+import { randomBytes } from 'crypto'
 
 const store = {}
 const JWT_SECRET = process.env.JWT_SECRET || 'arcadehub-secret-key-2026'
@@ -20,6 +21,82 @@ function jwtVerify(token) {
     if (sig !== parts[2]) return null
     return JSON.parse(Buffer.from(parts[1], 'base64url').toString())
   } catch { return null }
+}
+
+const rooms = {}
+function genCode() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let r = ''
+  for (let i = 0; i < 6; i++) r += c[randomBytes(1)[0] % c.length]
+  return r
+}
+
+function handleRoom(body) {
+  const { action, roomCode, username, game, move } = body || {}
+  const code = (roomCode || '').toUpperCase()
+
+  if (action === 'create') {
+    if (!game || !username) return { status: 400, data: { error: 'Missing fields' } }
+    let c; do { c = genCode() } while (rooms[c])
+    rooms[c] = {
+      id: c, game, status: 'waiting',
+      players: [{ username, ready: false }, { username: null, ready: false }],
+      turn: 0, moves: [], createdAt: Date.now(),
+      state: game === 'tictactoe' ? { board: Array(9).fill(null), winner: null } : {},
+    }
+    return { status: 200, data: { ok: true, room: rooms[c] } }
+  }
+
+  if (action === 'join') {
+    if (!code || !username) return { status: 400, data: { error: 'Missing fields' } }
+    const room = rooms[code]
+    if (!room) return { status: 404, data: { error: 'Комната не найдена' } }
+    if (room.status !== 'waiting') return { status: 400, data: { error: 'Игра уже началась' } }
+    if (room.players[1].username) return { status: 400, data: { error: 'Комната полна' } }
+    room.players[1] = { username, ready: false }
+    return { status: 200, data: { ok: true, room } }
+  }
+
+  if (action === 'status') {
+    if (!code) return { status: 400, data: { error: 'Missing roomCode' } }
+    const room = rooms[code]
+    if (!room) return { status: 404, data: { error: 'Комната не найдена' } }
+    return { status: 200, data: { ok: true, room } }
+  }
+
+  if (action === 'start') {
+    if (!code) return { status: 400, data: { error: 'Missing roomCode' } }
+    const room = rooms[code]
+    if (!room) return { status: 404, data: { error: 'Комната не найдена' } }
+    if (!room.players[0].username || !room.players[1].username) return { status: 400, data: { error: 'Нужно 2 игрока' } }
+    room.status = 'playing'; room.turn = 0; room.moves = []
+    if (room.game === 'tictactoe') room.state = { board: Array(9).fill(null), winner: null }
+    return { status: 200, data: { ok: true, room } }
+  }
+
+  if (action === 'move') {
+    if (!code || !username || move === undefined) return { status: 400, data: { error: 'Missing fields' } }
+    const room = rooms[code]
+    if (!room) return { status: 404, data: { error: 'Комната не найдена' } }
+    if (room.status !== 'playing') return { status: 400, data: { error: 'Игра не активна' } }
+    const pi = room.players.findIndex(p => p.username === username)
+    if (pi < 0) return { status: 403, data: { error: 'Не в этой игре' } }
+    if (pi !== room.turn) return { status: 400, data: { error: 'Не ваш ход' } }
+    room.moves.push({ player: username, move, at: Date.now() })
+
+    if (room.game === 'tictactoe') {
+      const b = room.state.board
+      if (b[move] !== null) return { status: 400, data: { error: 'Клетка занята' } }
+      b[move] = pi === 0 ? 'X' : 'O'
+      const W = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
+      for (const [a,c,d] of W) { if (b[a] && b[a] === b[c] && b[a] === b[d]) { room.state.winner = b[a]; room.status = 'finished'; return { status: 200, data: { ok: true, room } } } }
+      if (b.every(c => c !== null)) { room.state.winner = 'draw'; room.status = 'finished'; return { status: 200, data: { ok: true, room } } }
+      room.turn = 1 - pi
+    }
+    return { status: 200, data: { ok: true, room } }
+  }
+
+  return { status: 400, data: { error: 'Unknown action' } }
 }
 
 async function handleAuth(body) {
@@ -96,6 +173,10 @@ const server = http.createServer(async (req, res) => {
       } else {
         result = await handleProgress(req.method, req.headers.authorization)
       }
+    }
+
+    if (path === '/api/room') {
+      result = handleRoom(parsedBody)
     }
 
     if (result) {
