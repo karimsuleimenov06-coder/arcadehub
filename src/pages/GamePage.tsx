@@ -2,9 +2,13 @@ import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GAMES, getGameById } from "../types/game";
 import SnakeGame from "../games/Snake";
+import TicTacToeGame from "../games/TicTacToe";
+import PongGame from "../games/Pong";
 
 const gameComponents: Record<string, React.FC> = {
   snake: SnakeGame,
+  tictactoe: TicTacToeGame,
+  pong: PongGame,
 };
 
 export default function GamePage() {
