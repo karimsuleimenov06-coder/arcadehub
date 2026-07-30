@@ -15,6 +15,39 @@ function randomFood(snake: Cell[]): Cell {
   return p;
 }
 
+const ArrowIcon = ({ d }: { d: Direction }) => {
+  const paths: Record<Direction, string> = {
+    UP: "M12 4l-8 8h16z",
+    DOWN: "M12 20l8-8H4z",
+    LEFT: "M4 12l8-8v16z",
+    RIGHT: "M20 12l-8-8v16z",
+  };
+  return (
+    <svg className="w-6 h-6 sm:w-7 sm:h-7" viewBox="0 0 24 24" fill="currentColor">
+      <path d={paths[d]} />
+    </svg>
+  );
+};
+
+function DirButton({ d, onMove }: { d: Direction; onMove: (d: Direction) => void }) {
+  const handlePointer = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onMove(d);
+  };
+
+  return (
+    <button
+      onPointerDown={handlePointer}
+      onTouchStart={(e) => { e.preventDefault(); onMove(d); }}
+      className="w-14 h-14 sm:w-16 sm:h-16 glass rounded-xl flex items-center justify-center text-[var(--neon-blue)] active:bg-[var(--neon-blue)]/20 active:scale-90 transition-all select-none touch-none"
+      style={{ boxShadow: "0 0 12px rgba(0,243,255,0.15)" }}
+    >
+      <ArrowIcon d={d} />
+    </button>
+  );
+}
+
 export default function SnakeGame() {
   const [snake, setSnake] = useState<Cell[]>(INIT);
   const [food, setFood] = useState<Cell>(randomFood(INIT));
@@ -55,6 +88,15 @@ export default function SnakeGame() {
     });
   }, [gameOver, food]);
 
+  const handleMove = useCallback((d: Direction) => {
+    if (d === "UP" && dirRef.current === "DOWN") return;
+    if (d === "DOWN" && dirRef.current === "UP") return;
+    if (d === "LEFT" && dirRef.current === "RIGHT") return;
+    if (d === "RIGHT" && dirRef.current === "LEFT") return;
+    setDir(d);
+    move(d);
+  }, [move]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const keyMap: Record<string, Direction> = {
@@ -65,17 +107,12 @@ export default function SnakeGame() {
       const d = keyMap[e.key];
       if (d) {
         e.preventDefault();
-        if (d === "UP" && dirRef.current === "DOWN") return;
-        if (d === "DOWN" && dirRef.current === "UP") return;
-        if (d === "LEFT" && dirRef.current === "RIGHT") return;
-        if (d === "RIGHT" && dirRef.current === "LEFT") return;
-        setDir(d);
-        move(d);
+        handleMove(d);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [move]);
+  }, [handleMove]);
 
   const restart = () => {
     setSnake(INIT);
@@ -92,14 +129,14 @@ export default function SnakeGame() {
     <div className="flex flex-col items-center gap-4">
       <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
         <span>Очки: <strong className="neon-text-green">{score}</strong></span>
-        {started && <span>Управление: стрелки / WASD</span>}
       </div>
+
       <div
         className="relative"
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${SIZE}, 20px)`,
-          gridTemplateRows: `repeat(${SIZE}, 20px)`,
+          gridTemplateColumns: `repeat(${SIZE}, max(16px, min(20px, calc((100vw - 80px) / ${SIZE})))`,
+          gridTemplateRows: `repeat(${SIZE}, max(16px, min(20px, calc((100vw - 80px) / ${SIZE})))`,
           gap: 1,
           background: "rgba(0,0,0,0.3)",
           borderRadius: 8,
@@ -116,8 +153,7 @@ export default function SnakeGame() {
             <div
               key={i}
               style={{
-                width: 20,
-                height: 20,
+                aspectRatio: "1",
                 borderRadius: 2,
                 background: isHead ? "#00ff88" : isSnake ? "#00cc66" : isFood ? "#ff3355" : "rgba(255,255,255,0.03)",
                 boxShadow: isHead ? "0 0 8px rgba(0,255,136,0.6)" : isFood ? "0 0 8px rgba(255,51,85,0.6)" : "none",
@@ -127,24 +163,39 @@ export default function SnakeGame() {
           );
         })}
         {gameOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10">
             <div className="text-center">
               <p className="text-2xl font-bold neon-text-pink mb-2">Игра окончена!</p>
               <p className="text-[var(--text-secondary)] mb-4">Счёт: {score}</p>
-              <button onClick={restart} className="px-6 py-2 glass rounded-lg neon-text-green hover:neon-glow-green transition-all">
+              <button onClick={restart} className="px-6 py-2 glass rounded-lg neon-text-green hover:neon-glow-green transition-all active:scale-95">
                 Заново
               </button>
             </div>
           </div>
         )}
         {!started && !gameOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg z-10">
             <div className="text-center">
               <p className="text-lg neon-text-blue mb-2">Нажми любую стрелку</p>
-              <p className="text-xs text-[var(--text-muted)]">WASD / стрелки</p>
+              <p className="text-xs text-[var(--text-muted)]">или на кнопку ниже</p>
             </div>
           </div>
         )}
+      </div>
+
+      {/* D-Pad controls */}
+      <div className="grid grid-cols-3 gap-2 mt-2 select-none touch-none" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
+        <div />
+        <DirButton d="UP" onMove={handleMove} />
+        <div />
+        <DirButton d="LEFT" onMove={handleMove} />
+        <div className="w-14 h-14 sm:w-16 sm:h-16 glass rounded-xl flex items-center justify-center text-xs text-[var(--text-muted)]">
+          {score}
+        </div>
+        <DirButton d="RIGHT" onMove={handleMove} />
+        <div />
+        <DirButton d="DOWN" onMove={handleMove} />
+        <div />
       </div>
     </div>
   );
