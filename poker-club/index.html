@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Club</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="particles"></div>
+
+  <main id="app">
+    <!-- HOME -->
+    <section id="page-home" class="page active">
+      <div class="hero">
+        <div class="hero-glow"></div>
+        <h1 class="hero-title"><span class="neon-blue">Poker</span> <span class="neon-purple">Club</span></h1>
+        <p class="hero-subtitle">Играй в покер бесплатно против друзей или искусственного интеллекта</p>
+        <div class="hero-buttons">
+          <button class="btn btn-primary btn-glow" onclick="navigate('friends')">
+            <span class="btn-icon">🧑‍🤝‍🧑</span> Играть с друзьями
+          </button>
+          <button class="btn btn-secondary btn-glow" onclick="navigate('difficulty')">
+            <span class="btn-icon">🤖</span> Играть с ИИ
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIFFICULTY -->
+    <section id="page-difficulty" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('home')">← Назад</button>
+        <h2>Выберите сложность</h2>
+      </div>
+      <div class="difficulty-grid">
+        <button class="diff-card" data-diff="easy" onclick="startAIGame('easy')">
+          <span class="diff-icon">🌱</span>
+          <span class="diff-title">Легкий</span>
+          <span class="diff-desc">ИИ часто ошибается</span>
+        </button>
+        <button class="diff-card" data-diff="medium" onclick="startAIGame('medium')">
+          <span class="diff-icon">⚖️</span>
+          <span class="diff-title">Средний</span>
+          <span class="diff-desc">Сбалансированная игра</span>
+        </button>
+        <button class="diff-card" data-diff="hard" onclick="startAIGame('hard')">
+          <span class="diff-icon">🔥</span>
+          <span class="diff-title">Сложный</span>
+          <span class="diff-desc">ИИ играет сильно</span>
+        </button>
+        <button class="diff-card" data-diff="expert" onclick="startAIGame('expert')">
+          <span class="diff-icon">👑</span>
+          <span class="diff-title">Эксперт</span>
+          <span class="diff-desc">Почти непобедим</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- FRIENDS (Multiplayer) -->
+    <section id="page-friends" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('home')">← Назад</button>
+        <h2>Играть с друзьями</h2>
+      </div>
+      <div class="friends-actions">
+        <button class="btn btn-primary btn-glow" onclick="createRoom()">
+          <span class="btn-icon">➕</span> Создать комнату
+        </button>
+        <div class="divider"><span>или</span></div>
+        <div class="join-room">
+          <input type="text" id="room-code-input" class="input" placeholder="Введите код комнаты" maxlength="6">
+          <button class="btn btn-secondary btn-glow" onclick="joinRoom()">
+            <span class="btn-icon">🔗</span> Присоединиться
+          </button>
+        </div>
+      </div>
+      <div id="room-info" class="room-info hidden">
+        <div class="glass-card">
+          <p class="room-label">Код комнаты:</p>
+          <p id="room-code-display" class="room-code">------</p>
+          <p class="room-hint">Поделитесь этим кодом с друзьями</p>
+          <button class="btn btn-accent btn-glow" onclick="startMultiGame()">Начать игру</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section id="page-game" class="page">
+      <div class="game-header">
+        <button class="back-btn" onclick="exitGame()">← Выйти</button>
+        <div class="game-pot">
+          <span class="pot-label">Банк</span>
+          <span id="pot-display" class="pot-value">0</span>
+        </div>
+        <div class="game-timer" id="game-timer">15</div>
+      </div>
+
+      <div class="game-table">
+        <!-- AI opponents -->
+        <div class="opponents" id="opponents"></div>
+
+        <!-- Community cards -->
+        <div class="community-cards" id="community-cards">
+          <div class="card-slot"></div>
+          <div class="card-slot"></div>
+          <div class="card-slot"></div>
+          <div class="card-slot"></div>
+          <div class="card-slot"></div>
+        </div>
+
+        <!-- Player -->
+        <div class="player-area" id="player-area">
+          <div class="player-info">
+            <div class="player-avatar gradient-border">
+              <span class="avatar-emoji">😎</span>
+            </div>
+            <div class="player-details">
+              <span class="player-name">Вы</span>
+              <span class="player-chips" id="player-chips">1000</span>
+            </div>
+            <div class="player-status" id="player-status"></div>
+          </div>
+          <div class="player-cards" id="player-cards">
+            <div class="card" id="pc-0"></div>
+            <div class="card" id="pc-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="actions" id="actions">
+        <button class="action-btn fold" onclick="playerAction('fold')">Fold</button>
+        <button class="action-btn check" onclick="playerAction('check')">Check</button>
+        <button class="action-btn call" onclick="playerAction('call')">Call</button>
+        <button class="action-btn raise" onclick="playerAction('raise')">Raise</button>
+        <button class="action-btn allin" onclick="playerAction('allin')">All In</button>
+      </div>
+
+      <!-- Raise slider -->
+      <div class="raise-control hidden" id="raise-control">
+        <input type="range" id="raise-slider" min="20" max="1000" step="10" value="50">
+        <div class="raise-value">
+          <span id="raise-amount">50</span>
+          <button class="btn btn-accent btn-glow" onclick="confirmRaise()">Поднять</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="page-profile" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('home')">← Назад</button>
+        <h2>Профиль</h2>
+      </div>
+      <div class="profile-content">
+        <div class="profile-avatar large gradient-border">
+          <span class="avatar-emoji text-4xl">😎</span>
+        </div>
+        <p class="profile-name">Игрок</p>
+        <div class="profile-stats">
+          <div class="stat-card glass-card">
+            <span class="stat-value">0</span>
+            <span class="stat-label">Игр</span>
+          </div>
+          <div class="stat-card glass-card">
+            <span class="stat-value">0</span>
+            <span class="stat-label">Побед</span>
+          </div>
+          <div class="stat-card glass-card">
+            <span class="stat-value">0</span>
+            <span class="stat-label">Фишек</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page">
+      <div class="page-header">
+        <button class="back-btn" onclick="navigate('home')">← Назад</button>
+        <h2>Настройки</h2>
+      </div>
+      <div class="settings-content">
+        <div class="settings-item">
+          <label>Имя игрока</label>
+          <input type="text" id="player-name-input" class="input" value="Игрок" maxlength="20">
+        </div>
+        <div class="settings-item">
+          <label>Звук</label>
+          <label class="toggle">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-item">
+          <label>Анимации</label>
+          <label class="toggle">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-primary btn-glow" onclick="saveSettings()">Сохранить</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-page="home" onclick="navigate('home')">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Главная</span>
+    </button>
+    <button class="nav-item" data-page="friends" onclick="navigate('friends')">
+      <span class="nav-icon">👥</span>
+      <span class="nav-label">Друзья</span>
+    </button>
+    <button class="nav-item" data-page="profile" onclick="navigate('profile')">
+      <span class="nav-icon">👤</span>
+      <span class="nav-label">Профиль</span>
+    </button>
+    <button class="nav-item" data-page="settings" onclick="navigate('settings')">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Настройки</span>
+    </button>
+  </nav>
+
+  <!-- Result Modal -->
+  <div id="result-modal" class="modal hidden">
+    <div class="modal-content glass-card">
+      <p id="result-text" class="result-text"></p>
+      <div class="result-hand" id="result-hand"></div>
+      <button class="btn btn-primary btn-glow" onclick="closeResult()">OK</button>
+    </div>
+  </div>
+
+  <script src="js/particles.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
