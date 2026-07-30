@@ -5,60 +5,70 @@ type User = {
   nickname: string
   avatar: string
   registeredAt: number
+  token: string
 }
 
 type AuthContextType = {
   user: User | null
-  login: (username: string, password: string) => boolean
-  register: (username: string, password: string) => boolean
+  login: (username: string, password: string) => Promise<string | null>
+  register: (username: string, password: string) => Promise<string | null>
   logout: () => void
   updateProfile: (data: Partial<User>) => void
+  loading: boolean
 }
+
+const API = '/api/auth.ts'
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const saved = localStorage.getItem('arcadehub_user')
-    if (saved) {
-      try { setUser(JSON.parse(saved)) } catch {}
+    const saved = localStorage.getItem('arcadehub_token')
+    const savedUser = localStorage.getItem('arcadehub_user')
+    if (saved && savedUser) {
+      try {
+        const u = JSON.parse(savedUser)
+        setUser({ ...u, token: saved })
+      } catch {}
     }
+    setLoading(false)
   }, [])
 
   const saveUser = useCallback((u: User | null) => {
     setUser(u)
-    if (u) localStorage.setItem('arcadehub_user', JSON.stringify(u))
-    else localStorage.removeItem('arcadehub_user')
+    if (u) {
+      localStorage.setItem('arcadehub_token', u.token)
+      localStorage.setItem('arcadehub_user', JSON.stringify({ username: u.username, nickname: u.nickname, avatar: u.avatar, registeredAt: u.registeredAt }))
+    } else {
+      localStorage.removeItem('arcadehub_token')
+      localStorage.removeItem('arcadehub_user')
+    }
   }, [])
 
-  const login = useCallback((username: string, password: string) => {
-    const data = localStorage.getItem('arcadehub_accounts')
-    const accounts: Record<string, string> = data ? JSON.parse(data) : {}
-    if (accounts[username] && accounts[username] === password) {
-      const profiles = localStorage.getItem('arcadehub_profiles')
-      const profilesData: Record<string, User> = profiles ? JSON.parse(profiles) : {}
-      saveUser(profilesData[username] || { username, nickname: username, avatar: 'U', registeredAt: Date.now() })
-      return true
+  const apiFetch = useCallback(async (action: string, username: string, password: string): Promise<string | null> => {
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, username, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) return data.error || 'Ошибка сервера'
+      if (data.ok && data.token) {
+        saveUser({ username: data.user.username, nickname: data.user.nickname, avatar: data.user.avatar, registeredAt: data.user.registeredAt, token: data.token })
+        return null
+      }
+      return data.error || 'Ошибка'
+    } catch {
+      return 'Ошибка соединения с сервером'
     }
-    return false
   }, [saveUser])
 
-  const register = useCallback((username: string, password: string) => {
-    const data = localStorage.getItem('arcadehub_accounts')
-    const accounts: Record<string, string> = data ? JSON.parse(data) : {}
-    if (accounts[username]) return false
-    accounts[username] = password
-    localStorage.setItem('arcadehub_accounts', JSON.stringify(accounts))
-    const profiles = localStorage.getItem('arcadehub_profiles')
-    const profilesData: Record<string, User> = profiles ? JSON.parse(profiles) : {}
-    const newUser: User = { username, nickname: username, avatar: 'U', registeredAt: Date.now() }
-    profilesData[username] = newUser
-    localStorage.setItem('arcadehub_profiles', JSON.stringify(profilesData))
-    saveUser(newUser)
-    return true
-  }, [saveUser])
+  const login = useCallback((username: string, password: string) => apiFetch('login', username, password), [apiFetch])
+  const register = useCallback((username: string, password: string) => apiFetch('register', username, password), [apiFetch])
 
   const logout = useCallback(() => saveUser(null), [saveUser])
 
@@ -66,14 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return
     const updated = { ...user, ...data }
     saveUser(updated)
-    const profiles = localStorage.getItem('arcadehub_profiles')
-    const profilesData: Record<string, User> = profiles ? JSON.parse(profiles) : {}
-    profilesData[user.username] = updated
-    localStorage.setItem('arcadehub_profiles', JSON.stringify(profilesData))
   }, [user, saveUser])
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loading }}>
       {children}
     </AuthContext.Provider>
   )

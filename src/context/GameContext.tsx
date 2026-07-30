@@ -26,27 +26,64 @@ const DEFAULT_PROGRESS: GameProgress = {
   history: [],
 }
 
+const PROGRESS_API = '/api/progress.ts'
+
 const GameContext = createContext<GameContextType | null>(null)
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [progress, setProgress] = useState<GameProgress>(DEFAULT_PROGRESS)
+  const [synced, setSynced] = useState(false)
 
+  // Load progress from cloud on login
   useEffect(() => {
     if (!user) {
       setProgress(DEFAULT_PROGRESS)
+      setSynced(false)
       return
     }
-    const saved = localStorage.getItem(`arcadehub_progress_${user.username}`)
-    if (saved) {
-      try { setProgress(JSON.parse(saved)) } catch {}
-    }
-  }, [user])
+    if (synced) return
 
-  const save = useCallback((p: GameProgress) => {
+    const loadFromCloud = async () => {
+      try {
+        const res = await fetch(PROGRESS_API, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.data && Object.keys(data.data).length > 0) {
+            setProgress(data.data as GameProgress)
+          }
+        }
+      } catch {}
+      setSynced(true)
+    }
+    loadFromCloud()
+
+    // Also try local as fallback
+    const local = localStorage.getItem(`arcadehub_progress_${user.username}`)
+    if (local) {
+      try {
+        const p = JSON.parse(local) as GameProgress
+        setProgress(prev => ({ ...p, ...prev }))
+      } catch {}
+    }
+  }, [user, synced])
+
+  const save = useCallback(async (p: GameProgress) => {
     setProgress(p)
     if (user) {
       localStorage.setItem(`arcadehub_progress_${user.username}`, JSON.stringify(p))
+      try {
+        await fetch(PROGRESS_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user.token}`,
+          },
+          body: JSON.stringify({ data: p }),
+        })
+      } catch {}
     }
   }, [user])
 
@@ -68,6 +105,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       if (user) {
         localStorage.setItem(`arcadehub_progress_${user.username}`, JSON.stringify(updated))
+        fetch(PROGRESS_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user.token}`,
+          },
+          body: JSON.stringify({ data: updated }),
+        }).catch(() => {})
       }
       return updated
     })
