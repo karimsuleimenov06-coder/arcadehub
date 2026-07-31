@@ -86,7 +86,7 @@ export default function PokerGame(){
   const advancePhase=useCallback(()=>{
     const d=deckRef.current;
     const clen=communityRef.current.length;
-    const resetBets=()=>{setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(p=>p.findIndex(x=>!x.folded&&!x.allin));st()};
+    const resetBets=()=>{setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(playersRef.current.findIndex(x=>!x.folded&&!x.allin));st()};
     if(clen===0){setCommunity(d.slice(-3));deckRef.current=d.slice(0,-3);resetBets()}
     else if(clen===3){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);resetBets()}
     else if(clen===4){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);resetBets()}
