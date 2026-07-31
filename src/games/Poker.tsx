@@ -21,6 +21,9 @@ function ch(a:Card[],b:Card[]){const ha=eh(a),hb=eh(b);if(ha.s!==hb.s)return ha.
 
 interface P{name:string;chips:number;cards:Card[];bet:number;folded:boolean;allin:boolean;isAI:boolean;avatar:string}
 
+const API = '/api/room'
+function apiCall(body: any) { return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()) }
+
 export default function PokerGame(){
   const [phase,setPhase]=useState<"idle"|"play"|"result">("idle");
   const [players,setPlayers]=useState<P[]>([]);
@@ -40,6 +43,20 @@ export default function PokerGame(){
   const cpRef=useRef(cp);cpRef.current=cp;
   const cbRef=useRef(cb);cbRef.current=cb;
   const diffRef=useRef(diff);diffRef.current=diff;
+  const playersRef=useRef(players);playersRef.current=players;
+  const communityRef=useRef(community);communityRef.current=community;
+  const potRef=useRef(pot);potRef.current=pot;
+
+  // Online mode state
+  const [mode,setMode]=useState<"ai"|"online">("ai");
+  const [onlineUI,setOnlineUI]=useState<'idle'|'lobby'|'playing'>('idle');
+  const [roomCode,setRoomCode]=useState('');
+  const [joinCode,setJoinCode]=useState('');
+  const [onlineState,setOnlineState]=useState<any>(null);
+  const [isP1,setIsP1]=useState(true);
+  const pollRef=useRef<ReturnType<typeof setInterval>>();
+  const opollRef=useRef<ReturnType<typeof setInterval>>();
+  const myNameRef=useRef('Игрок1');
 
   const ct=()=>{if(ti.current){clearInterval(ti.current);ti.current=undefined}};
 
@@ -48,16 +65,36 @@ export default function PokerGame(){
     ti.current=setInterval(()=>{setTimer(t=>{if(t<=1){ct();return 15}return t-1})},1000);
   },[]);
 
+  const endHand=useCallback(()=>{
+    ct();setPhase("result");
+    const potNow=potRef.current;
+    const comm=communityRef.current;
+    setPlayers(prev=>{
+      const active=prev.filter(p=>!p.folded);
+      if(!active.length)return prev;
+      if(active.length===1){active[0].chips+=potNow;return[...prev]}
+      let best=active[0];for(const p of active)if(ch(p.cards.concat(comm),best.cards.concat(comm))>0)best=p;
+      const ws=active.filter(p=>ch(p.cards.concat(comm),best.cards.concat(comm))===0);
+      const sh=Math.floor(potNow/ws.length);for(const w of ws)w.chips+=sh;
+      const hn=eh(best.cards.concat(comm)).n;
+      const iw=ws.some(w=>w.name==="Вы");
+      setResult({text:iw?`🎉 Вы выиграли ${sh}!`:`😔 Победил ${best.name}`,hand:`Комбинация: ${hn}`,win:iw});
+      return[...prev]
+    });
+  },[]);
+
   const advancePhase=useCallback(()=>{
     const d=deckRef.current;
-    if(community.length===0){setCommunity(d.slice(-3));deckRef.current=d.slice(0,-3);setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(p=>p.findIndex(x=>!x.folded&&!x.allin));st()}
-    else if(community.length===3){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(p=>p.findIndex(x=>!x.folded&&!x.allin));st()}
-    else if(community.length===4){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(p=>p.findIndex(x=>!x.folded&&!x.allin));st()}
-    else if(community.length===5){endHand()}
-  },[community.length]);
+    const clen=communityRef.current.length;
+    const resetBets=()=>{setCb(0);setPlayers(p=>p.map(x=>({...x,bet:0})));setCp(p=>p.findIndex(x=>!x.folded&&!x.allin));st()};
+    if(clen===0){setCommunity(d.slice(-3));deckRef.current=d.slice(0,-3);resetBets()}
+    else if(clen===3){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);resetBets()}
+    else if(clen===4){setCommunity(c=>[...c,d[d.length-1]]);deckRef.current=d.slice(0,-1);resetBets()}
+    else if(clen===5){endHand()}
+  },[endHand,st]);
 
   const nextTurn=useCallback(()=>{
-    const pv=players;const cw=cbRef.current;
+    const pv=playersRef.current;const cw=cbRef.current;
     const active=pv.filter(p=>!p.folded&&!p.allin);
     if(active.length<=1){endHand();return}
     const allActed=pv.every(p=>p.folded||p.allin||p.bet===cw);
@@ -65,23 +102,7 @@ export default function PokerGame(){
     let n=cpRef.current;
     for(let i=0;i<pv.length;i++){n=(n+1)%pv.length;if(!pv[n].folded&&!pv[n].allin)break}
     setCp(n);st();
-  },[players,advancePhase]);
-
-  const endHand=useCallback(()=>{
-    ct();setPhase("result");
-    setPlayers(prev=>{
-      const active=prev.filter(p=>!p.folded);
-      if(!active.length)return prev;
-      if(active.length===1){active[0].chips+=pot;return[...prev]}
-      let best=active[0];for(const p of active)if(ch(p.cards.concat(community),best.cards.concat(community))>0)best=p;
-      const ws=active.filter(p=>ch(p.cards.concat(community),best.cards.concat(community))===0);
-      const sh=Math.floor(pot/ws.length);for(const w of ws)w.chips+=sh;
-      const hn=eh(best.cards.concat(community)).n;
-      const iw=ws.some(w=>w.name==="Вы");
-      setResult({text:iw?`🎉 Вы выиграли ${sh}!`:`😔 Победил ${best.name}`,hand:`Комбинация: ${hn}`,win:iw});
-      return[...prev]
-    });
-  },[pot,community]);
+  },[advancePhase,endHand,st]);
 
   const fold=useCallback(()=>{
     setPlayers(p=>{const n=[...p];n[0].folded=true;return n});
@@ -89,27 +110,27 @@ export default function PokerGame(){
   },[nextTurn]);
 
   const callAct=useCallback(()=>{
-    const p=players[0];const amt=Math.min(cb-p.bet,p.chips);
+    const p=playersRef.current[0];const amt=Math.min(cbRef.current-p.bet,p.chips);
     setPlayers(p=>{const n=[...p];n[0].chips-=amt;n[0].bet+=amt;return n});
     setPot(p=>p+amt);
     setTimeout(()=>nextTurn(),100);
-  },[players,cb,nextTurn]);
+  },[nextTurn]);
 
-  const raiseAct=useCallback(()=>{const p=players[0];setRa(Math.min(Math.max(40,cb*2),p.chips));setSr(true)},[players,cb]);
+  const raiseAct=useCallback(()=>{const p=playersRef.current[0];setRa(Math.min(Math.max(40,cbRef.current*2),p.chips));setSr(true)},[]);
 
   const confirmRaise=useCallback(()=>{
-    setSr(false);const p=players[0];const amt=Math.min(ra,p.chips);
+    setSr(false);const p=playersRef.current[0];const amt=Math.min(ra,p.chips);
     setPlayers(p=>{const n=[...p];n[0].chips-=amt;n[0].bet+=amt;return n});
     setPot(p=>p+amt);setCb(c=>Math.max(c,ra));
     setTimeout(()=>nextTurn(),100);
-  },[ra,players,nextTurn]);
+  },[ra,nextTurn]);
 
   const allin=useCallback(()=>{
-    const p=players[0];const amt=p.chips;
+    const p=playersRef.current[0];const amt=p.chips;
     setPlayers(p=>{const n=[...p];n[0].chips=0;n[0].bet+=amt;n[0].allin=true;return n});
     setPot(p=>p+amt);setCb(c=>Math.max(c,amt));
     setTimeout(()=>nextTurn(),100);
-  },[players,nextTurn]);
+  },[nextTurn]);
 
   const startGame=useCallback((d:Difficulty)=>{
     setDiff(d);ct();setResult(null);setDealt(false);setSr(false);
@@ -126,16 +147,19 @@ export default function PokerGame(){
   },[]);
 
   useEffect(()=>{if(phase==="play"&&cp>0&&!players[cp]?.folded&&!players[cp]?.allin){const t=setTimeout(()=>{
-    const idx=cpRef.current,pl=players,pdiff=diffRef.current;
+    const idx=cpRef.current,pdiff=diffRef.current;
     if(idx===0||phaseRef.current!=="play")return;
-    const p=pl[idx];if(!p||p.folded||p.allin){nextTurn();return}
+    const pv=playersRef.current;
+    const p=pv[idx];if(!p||p.folded||p.allin){nextTurn();return}
     const should=Math.random()<MISTAKE[pdiff];
-    const hv=community.length>0?eh(p.cards.concat(community)).s/10:0.3;
+    const comm=communityRef.current;
+    const hv=comm.length>0?eh(p.cards.concat(comm)).s/10:0.3;
     const eff=Math.max(0.1,hv-(should?Math.random()*0.6:0));
-    const ca=Math.min(cbRef.current-p.bet,p.chips);
+    const cw=cbRef.current;
+    const ca=Math.min(cw-p.bet,p.chips);
     let action='fold',ra2=0;
-    if(cbRef.current===p.bet)action=eff>0.2||should?'check':'fold';
-    else if(eff>0.65&&p.chips>cbRef.current*3){action='raise';ra2=Math.min(Math.floor(cbRef.current*2+pot*0.3*eff),p.chips)}
+    if(cw===p.bet)action=eff>0.2||should?'check':'fold';
+    else if(eff>0.65&&p.chips>cw*3){action='raise';ra2=Math.min(Math.floor(cw*2+potRef.current*0.3*eff),p.chips)}
     else if(eff>0.35&&ca<=p.chips*0.3)action='call';
     else if(eff>0.15&&ca<=p.chips*0.15)action='call';
     else if(should&&Math.random()<0.3)action='call';
@@ -146,14 +170,208 @@ export default function PokerGame(){
     else if(action==='call'){setPlayers(p=>{const n=[...p];n[idx].chips-=ca;n[idx].bet+=ca;return n});setPot(pr=>pr+ca)}
     else if(action==='raise'){if(ra2>=p.chips){ra2=p.chips;setPlayers(pp=>{const n=[...pp];n[idx].allin=true;return n})}setPlayers(pp=>{const n=[...pp];n[idx].chips-=ra2;n[idx].bet+=ra2;return n});setPot(pr=>pr+ra2);setCb(c=>Math.max(c,ra2))}
     setTimeout(()=>nextTurn(),400);
-  },800);return ()=>clearTimeout(t)}},[phase,cp,players,nextTurn]);
+  },800);return ()=>clearTimeout(t)}},[phase,cp,nextTurn]);
 
   useEffect(()=>{return ()=>ct()},[]);
+
+  // Online mode handlers
+  const createPokerRoom=async()=>{
+    const u0='Игрок1';
+    const r=await apiCall({action:'create',game:'poker',username:u0});
+    if(!r.ok)return;
+    const uname=r.room.players[0]?.username||u0;
+    myNameRef.current=uname;
+    setRoomCode(r.room.id);setOnlineUI('lobby');setIsP1(true);
+    pollRef.current=setInterval(async()=>{
+      const s=await apiCall({action:'status',roomCode:r.room.id});
+      if(s.ok&&s.room.status==='playing'){
+        setOnlineUI('playing');clearInterval(pollRef.current);
+        startOnlinePolling(r.room.id,true);
+      }
+    },1000);
+  };
+
+  const joinPokerRoom=async(code:string)=>{
+    const u0='Игрок2';
+    const r=await apiCall({action:'join',roomCode:code,username:u0});
+    if(!r.ok){alert(r.error);return}
+    const uname=r.room.players[1]?.username||u0;
+    myNameRef.current=uname;
+    setRoomCode(code.toUpperCase());setOnlineUI('playing');setIsP1(false);
+    startOnlinePolling(code.toUpperCase(),false);
+  };
+
+  const startOnlinePolling=(rc:string,p1:boolean)=>{
+    setIsP1(p1);
+    if(opollRef.current)clearInterval(opollRef.current);
+    opollRef.current=setInterval(async()=>{
+      const s=await apiCall({action:'status',roomCode:rc});
+      if(s.ok&&s.room.state){setOnlineState({...s.room.state,rc})}
+    },500);
+  };
+
+  const onlineFold=async()=>{
+    const s=onlineState;if(!s)return;
+    await apiCall({action:'move',roomCode:s.rc,username:myNameRef.current,move:{action:'fold'}});
+  };
+  const onlineCall=async()=>{
+    const s=onlineState;if(!s)return;
+    await apiCall({action:'move',roomCode:s.rc,username:myNameRef.current,move:{action:'call'}});
+  };
+  const onlineRaise=async()=>{
+    const s=onlineState;if(!s)return;
+    const ra=Math.min(Math.max((s.cb||0)*2,40),isP1?s.p1chips:s.p2chips);
+    await apiCall({action:'move',roomCode:s.rc,username:myNameRef.current,move:{action:'raise',amount:ra}});
+  };
+
+  const switchMode=(m:"ai"|"online")=>{
+    if(pollRef.current)clearInterval(pollRef.current);
+    if(opollRef.current)clearInterval(opollRef.current);
+    setMode(m);setOnlineUI('idle');setOnlineState(null);ct();
+    if(m==="ai"){setPhase("idle");setResult(null)}
+  };
+
+  useEffect(()=>{return()=>{if(pollRef.current)clearInterval(pollRef.current);if(opollRef.current)clearInterval(opollRef.current)}},[]);
+
+  // Render online lobby
+  if(mode==="online"&&onlineUI==="idle"){
+    return<div className="flex flex-col items-center gap-4">
+      <div className="flex gap-2">
+        <button onClick={()=>switchMode("ai")} className="px-4 py-1.5 text-xs rounded-lg text-[var(--text-muted)]">🤖 С ИИ</button>
+        <button onClick={()=>{}} className="px-4 py-1.5 text-xs rounded-lg glass neon-text-blue">🌐 Онлайн</button>
+      </div>
+      <div className="flex flex-col items-center gap-4 w-full max-w-xs py-8">
+        <button onClick={createPokerRoom} className="w-full px-6 py-3 glass rounded-xl text-sm neon-text-blue font-bold">Создать комнату</button>
+        <div className="flex items-center gap-2 w-full"><div className="flex-1 h-px" style={{background:"linear-gradient(90deg,transparent,var(--glass-border),transparent)"}}/><span className="text-xs text-[var(--text-muted)]">или</span><div className="flex-1 h-px" style={{background:"linear-gradient(90deg,transparent,var(--glass-border),transparent)"}}/></div>
+        <div className="flex gap-2 w-full">
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="Код комнаты" maxLength={6}
+            className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+            style={{background:"var(--glass-bg)",border:"1px solid var(--glass-border)",color:"var(--text)"}}/>
+          <button onClick={()=>joinPokerRoom(joinCode)} className="px-4 py-2 glass rounded-lg text-xs neon-text-purple">Войти</button>
+        </div>
+      </div>
+    </div>;
+  }
+
+  if(mode==="online"&&onlineUI==="lobby"){
+    return<div className="flex flex-col items-center gap-4">
+      <div className="glass-card text-center py-8 px-8">
+        <p className="text-xs text-[var(--text-muted)] mb-2">Код комнаты</p>
+        <p className="text-3xl font-bold tracking-[0.2em] neon-text-blue" style={{fontFamily:"var(--font-title)"}}>{roomCode}</p>
+        <p className="text-sm text-[var(--text-secondary)] mt-4">Ожидание противника...</p>
+      </div>
+    </div>;
+  }
+
+  // Render online poker game
+  if(mode==="online"&&onlineUI==="playing"){
+    const s=onlineState;
+    if(!s)return<div className="text-center text-sm text-[var(--text-muted)] py-8">Загрузка...</div>;
+    const myCards=isP1?s.p1cards||[]:s.p2cards||[];
+    const oppCards=isP1?s.p2cards||[]:s.p1cards||[];
+    const myChips=isP1?s.p1chips: s.p2chips;
+    const oppChips=isP1?s.p2chips: s.p1chips;
+    const myBet=isP1?s.p1bet||0: s.p2bet||0;
+    const myTurn=s.turn===(isP1?0:1);
+    const myFolded=isP1?s.p1folded: s.p2folded;
+    const myAllin=isP1?s.p1allin: s.p2allin;
+    const oppFolded=isP1?s.p2folded: s.p1folded;
+    const oppAllin=isP1?s.p2allin: s.p1allin;
+
+    return<div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-3">
+      <div className="flex gap-2">
+        <button onClick={()=>switchMode("ai")} className="px-4 py-1.5 text-xs rounded-lg text-[var(--text-muted)]">🤖 С ИИ</button>
+        <button onClick={()=>switchMode("online")} className="px-4 py-1.5 text-xs rounded-lg glass neon-text-blue">🌐 Онлайн</button>
+      </div>
+
+      <div className="flex items-center justify-between w-full text-xs text-[var(--text-secondary)] px-2">
+        <div className="flex items-center gap-2">
+          <span className={`${oppFolded?'opacity-30':''}`}>👤 Противник</span>
+          <strong className={oppFolded?'text-[var(--text-muted)]':'neon-text-purple'}>{oppChips}</strong>
+        </div>
+        <div className="text-center">
+          <span className="block text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Банк</span>
+          <span className="font-bold text-lg neon-text-green">{s.pot||0}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <strong className="neon-text-blue">{myChips}</strong>
+          <span className={myFolded?'opacity-30':''}>Вы</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center gap-2">
+        <div className={`flex flex-col items-center gap-1 transition-all ${oppFolded?'opacity-30':''}`}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+            style={{background:"var(--glass-bg)"}}>👤</div>
+          <span className="text-[10px] text-[var(--text-muted)]">Противник</span>
+          <div className="flex gap-0.5">
+            {[0,1].map(j=><div key={j} className={`w-3 h-4 rounded-sm ${oppFolded?'opacity-20':''}`}
+              style={{background:oppFolded?'var(--glass-bg)':oppCards[j]?'linear-gradient(145deg,#1a1a2e,#16213e)':'var(--glass-bg)',border:"1px solid var(--glass-border)"}}>
+              {oppCards[j]&&<span className={`text-[6px] block ${cr(oppCards[j])}`}>{cs(oppCards[j])}</span>}
+            </div>)}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-center gap-2 my-2">
+        {[0,1,2,3,4].map(i=>{
+          const c=s.community?.[i];
+          return<div key={i} className={`w-12 h-16 sm:w-14 sm:h-20 rounded-lg flex items-center justify-center text-xs sm:text-sm font-bold ${c?`${cr(c)}`:"opacity-30"}`} style={{
+            background:c?"linear-gradient(145deg,#1a1a2e,#16213e)":"var(--glass-bg)",
+            border:c?"1px solid rgba(0,243,255,0.15)":"1px solid var(--glass-border)",
+          }}>{c?cs(c):''}</div>
+        })}
+      </div>
+
+      <div className="flex items-center gap-3 glass rounded-2xl p-4 w-full max-w-md">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl" style={{background:"var(--glass-bg)"}}><span>😎</span></div>
+        <div className="flex flex-col">
+          <span className="text-sm font-bold">Вы</span>
+          <span className="text-xs text-[var(--neon-yellow)]">{myChips}</span>
+        </div>
+        <div className="flex gap-2 ml-auto">
+          {(!myFolded?myCards:[]).map((c,i)=><div key={i} className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold ${cr(c)}`}
+            style={{background:"linear-gradient(145deg,#1a1a2e,#16213e)",border:"1px solid rgba(0,243,255,0.15)"}}>
+            {cs(c)}
+          </div>)}
+        </div>
+      </div>
+
+      <div className="text-xs text-[var(--text-muted)]">{s.lastAction||''}</div>
+
+      {myTurn&&!myFolded&&!myAllin&&<div className="flex gap-2 flex-wrap justify-center mt-2">
+        <button onClick={onlineFold} className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all active:scale-95"
+          style={{color:'#ff4757',borderColor:'rgba(255,71,87,0.3)',background:'var(--glass-bg)'}}>Fold</button>
+        <button onClick={onlineCall} className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all active:scale-95"
+          style={{color:'var(--neon-blue)',borderColor:'rgba(0,243,255,0.3)',background:'var(--glass-bg)'}}>Call {Math.max(0,(s.cb||0)-myBet)}</button>
+        <button onClick={onlineRaise} className="px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all active:scale-95"
+          style={{color:'var(--neon-yellow)',borderColor:'rgba(255,221,0,0.3)',background:'var(--glass-bg)'}}>Raise</button>
+      </div>}
+
+      {!myTurn&&!myFolded&&!s.result&&<div className="text-sm text-[var(--text-secondary)] mt-2">Ожидание хода противника...</div>}
+
+      {s.result&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={()=>{switchMode("online")}}>
+        <div className="glass-card text-center max-w-xs mx-4" onClick={e=>e.stopPropagation()}>
+          <p className={`text-lg font-bold mb-2 ${s.result.winner===-1?'neon-text-yellow':(s.result.winner===(isP1?0:1)?'neon-text-green':'neon-text-pink')}`}>
+            {s.result.winner===-1?'Ничья':(s.result.winner===(isP1?0:1)?'🎉 Вы выиграли!':'😔 Противник выиграл')}
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">{s.result.text}</p>
+          {s.result.h1&&<p className="text-xs text-[var(--text-secondary)] mt-1">Вы: {s.result.h1}</p>}
+          {s.result.h2&&<p className="text-xs text-[var(--text-secondary)]">Противник: {s.result.h2}</p>}
+          <button onClick={()=>switchMode("online")} className="mt-4 px-4 py-2 glass rounded-lg text-xs neon-text-blue">В лобби</button>
+        </div>
+      </div>}
+    </div>;
+  }
 
   const me=players[0];
   const isMyTurn=cp===0&&!me?.folded&&!me?.allin;
 
   if(phase==="idle")return<div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-4 py-8">
+    <div className="flex gap-2 mb-2">
+      <button onClick={()=>switchMode("ai")} className="px-4 py-1.5 text-xs rounded-lg glass neon-text-blue">🤖 С ИИ</button>
+      <button onClick={()=>switchMode("online")} className="px-4 py-1.5 text-xs rounded-lg text-[var(--text-muted)]">🌐 Онлайн</button>
+    </div>
     <p className="text-sm text-[var(--text-secondary)]">Выберите сложность</p>
     <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
       {DIFF_O.map(d=><button key={d} onClick={()=>startGame(d)}
@@ -172,7 +390,13 @@ export default function PokerGame(){
   </div>;
 
   return<div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-3">
-    {/* Stats bar */}
+    <div className="flex gap-2">
+      <button onClick={()=>switchMode("ai")}
+        className={`px-4 py-1.5 text-xs rounded-lg transition-all ${mode==="ai"?"glass neon-text-blue":"text-[var(--text-muted)]"}`}>🤖 С ИИ</button>
+      <button onClick={()=>switchMode("online")}
+        className={`px-4 py-1.5 text-xs rounded-lg transition-all ${mode==="online"?"glass neon-text-blue":"text-[var(--text-muted)]"}`}>🌐 Онлайн</button>
+    </div>
+
     <div className="flex items-center justify-between w-full text-xs text-[var(--text-secondary)] px-2">
       <span>Вы: <strong className="neon-text-blue">{me?.chips||0}</strong></span>
       <div className="text-center">
@@ -182,7 +406,6 @@ export default function PokerGame(){
       <div className={`w-10 h-10 flex items-center justify-center rounded-full glass text-sm font-bold ${timer<=5?"neon-text-pink":"neon-text-blue"}`}>{timer}</div>
     </div>
 
-    {/* Opponents */}
     <div className="flex justify-center gap-4 sm:gap-8 flex-wrap">
       {players.filter((_,i)=>i>0).map((op,i)=>{
         const idx=players.indexOf(op);
@@ -197,7 +420,6 @@ export default function PokerGame(){
       })}
     </div>
 
-    {/* Community */}
     <div className="flex justify-center gap-2 my-2">
       {[0,1,2,3,4].map(i=>{
         const c=community[i];
@@ -210,7 +432,6 @@ export default function PokerGame(){
       })}
     </div>
 
-    {/* Player */}
     <div className="flex items-center gap-3 glass rounded-2xl p-4 w-full max-w-md">
       <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${cp===0?"ring-2 ring-[var(--neon-blue)] ring-offset-2 ring-offset-[#0b0b16]":""}`} style={{background:"var(--glass-bg)"}}>
         <span>{me?.avatar}</span>
@@ -227,7 +448,6 @@ export default function PokerGame(){
       </div>
     </div>
 
-    {/* Actions */}
     {isMyTurn&&<div className="flex gap-2 flex-wrap justify-center mt-2">
       <button onClick={fold} className="ab fold">Fold</button>
       {(cb===me?.bet||!me)&&<button onClick={callAct} className="ab check">Check</button>}
@@ -236,7 +456,6 @@ export default function PokerGame(){
       <button onClick={allin} className="ab allin">All In</button>
     </div>}
 
-    {/* Raise */}
     {sr&&<div className="flex items-center gap-3 mt-2 w-full max-w-xs">
       <input type="range" min={Math.min(40,me?.chips||40)} max={me?.chips||0} step={10} value={ra} onChange={e=>setRa(Number(e.target.value))}
         className="flex-1 h-1 rounded-full accent-[var(--neon-blue)]" style={{background:"linear-gradient(90deg,var(--neon-blue),var(--neon-purple))"}}/>
@@ -244,7 +463,6 @@ export default function PokerGame(){
       <button onClick={confirmRaise} className="px-3 py-1.5 glass rounded-lg text-xs neon-text-green active:scale-95">OK</button>
     </div>}
 
-    {/* Result */}
     {result&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={()=>setPhase("idle")}>
       <div className="glass-card text-center max-w-xs mx-4" onClick={e=>e.stopPropagation()}>
         <p className={`text-lg font-bold mb-2 ${result.win?"neon-text-green":"neon-text-pink"}`}>{result.text}</p>
