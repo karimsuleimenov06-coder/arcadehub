@@ -1,0 +1,1 @@
+{"id":"NYSBMC","game":"tictactoe","status":"waiting","players":[{"username":"Tester1","ready":false,"wScore":0},{"username":null,"ready":false,"wScore":0}],"turn":0,"moves":[],"createdAt":1785607620066,"state":{"board":[null,null,null,null,null,null,null,null,null],"winner":null}}
