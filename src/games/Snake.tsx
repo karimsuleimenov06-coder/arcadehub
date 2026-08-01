@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useGame } from "../context/GameContext";
+import { subscribe, unsubscribe, publish } from "../lib/mqtt";
 
 type Cell = { x: number; y: number };
 type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT";
@@ -58,7 +59,7 @@ export default function SnakeGame() {
   const [dead2, setDead2] = useState(false);
   const [p1Name, setP1Name] = useState('');
   const [p2Name, setP2Name] = useState('');
-  const orRef = useRef({ roomCode: '', myName: '', isP1: true, tickRef: null as any, pollRef: null as any, dir: 'RIGHT' as Direction, oppDir: 'LEFT' as Direction, foodEaten: false, started: false });
+  const orRef = useRef({ roomCode: '', myName: '', isP1: true, tickRef: null as any, pollRef: null as any, dir: 'RIGHT' as Direction, oppDir: 'LEFT' as Direction, topic: '', started: false });
   const mySnakeRef = useRef<Cell[]>(INIT);
   const oppSnakeRef = useRef<Cell[]>([]);
   const foodRef = useRef<Cell>({ x: 15, y: 10 });
@@ -165,7 +166,6 @@ export default function SnakeGame() {
     oppSnakeRef.current = isP1 ? [{ x: 5, y: 5 }] : [{ x: 10, y: 10 }];
     foodRef.current = { x: 15, y: 10 };
     or.dir = isP1 ? 'RIGHT' : 'LEFT';
-    or.oppDir = isP1 ? 'LEFT' : 'RIGHT';
     setSnake(mySnakeRef.current);
     setOpponentSnake(oppSnakeRef.current);
     setFood(foodRef.current);
@@ -173,77 +173,76 @@ export default function SnakeGame() {
     setScore(0); setOpponentScore(0); setGameOver(false); setDead2(false);
     deadRef.current = false; dead2Ref.current = false;
 
-    // Game tick
+    const topic = `arcadehub/snake/${rc}`;
+    or.topic = topic;
+    subscribe(topic, (msg) => {
+      if (msg.who === (isP1 ? 0 : 1)) return;
+      if (Array.isArray(msg.snake)) {
+        oppSnakeRef.current = msg.snake;
+        setOpponentSnake([...msg.snake]);
+        const head = msg.snake[0];
+        if (!head || head.x < 0 || head.x >= SIZE || head.y < 0 || head.y >= SIZE || msg.snake.slice(1).some(s => s.x === head.x && s.y === head.y)) {
+          dead2Ref.current = true; setDead2(true);
+        }
+      }
+      if (typeof msg.score === 'number') setOpponentScore(msg.score);
+      if (isP1) {
+        const head = oppSnakeRef.current[0];
+        if (head && head.x === foodRef.current.x && head.y === foodRef.current.y) {
+          foodRef.current = randomFood(mySnakeRef.current, oppSnakeRef.current);
+          setFood({ ...foodRef.current }); setOnlineFood({ ...foodRef.current });
+        }
+      } else {
+        if (msg.food && typeof msg.food.x === 'number') {
+          foodRef.current = msg.food; setFood(msg.food); setOnlineFood(msg.food);
+        }
+      }
+    });
+
+    // Game tick (each player simulates only their own snake)
     or.tickRef = setInterval(() => {
       if (deadRef.current && dead2Ref.current) return;
 
-      // Move my snake
       const mySnake = mySnakeRef.current;
       const myResult = moveSnake(mySnake, or.dir, foodRef.current, false);
       if (myResult.dead) { deadRef.current = true; setGameOver(true); }
-      if (!myResult.dead) {
+      else {
         mySnakeRef.current = myResult.snake;
         if (myResult.ate) {
-          foodRef.current = randomFood(myResult.snake, oppSnakeRef.current);
+          if (isP1) foodRef.current = randomFood(myResult.snake, oppSnakeRef.current);
           setScore(s => s + 1);
         }
       }
 
-      // Move opponent snake
-      const oppSnake = oppSnakeRef.current;
-      const oppResult = moveSnake(oppSnake.length ? oppSnake : [{ x: isP1 ? 5 : 10, y: isP1 ? 5 : 10 }], or.oppDir, foodRef.current, false);
-      if (oppResult.dead) { dead2Ref.current = true; setDead2(true); }
-      if (!oppResult.dead) {
-        oppSnakeRef.current = oppResult.snake;
-        if (oppResult.ate) {
-          foodRef.current = randomFood(mySnakeRef.current, oppResult.snake);
-          setOpponentScore(s => s + 1);
+      if (!deadRef.current) {
+        const head = mySnakeRef.current[0];
+        if (oppSnakeRef.current.some(s => s.x === head.x && s.y === head.y)) {
+          deadRef.current = true; setGameOver(true);
         }
       }
 
       setSnake([...mySnakeRef.current]);
-      setOpponentSnake([...oppSnakeRef.current]);
       setFood({ ...foodRef.current });
       setOnlineFood({ ...foodRef.current });
 
-      // Send state to server (P1 is authoritative for the shared food)
-      const payload = isP1
-        ? { snake: mySnakeRef.current, dir: or.dir, food: foodRef.current }
-        : { snake: mySnakeRef.current, dir: or.dir };
-      apiCall({ action: 'move', roomCode: rc, username: uname, move: payload }).catch(() => {});
+      publish(topic, isP1
+        ? { who: 0, snake: mySnakeRef.current, dir: or.dir, score: scoreRef.current, food: foodRef.current }
+        : { who: 1, snake: mySnakeRef.current, dir: or.dir, score: scoreRef.current });
     }, MOVE_DELAY);
   };
-
-  // Poll for opponent state in online mode
-  useEffect(() => {
-    if (mode !== 'online' || onlineUI !== 'playing') return;
-    const or = orRef.current;
-    const pollInterval = setInterval(async () => {
-      const s = await apiCall({ action: 'status', roomCode: or.roomCode });
-      if (!s.ok || !s.room.state) return;
-      const st = s.room.state;
-      if (or.isP1) {
-        if (Array.isArray(st.snake2) && st.snake2.length) { oppSnakeRef.current = st.snake2; setOpponentSnake([...st.snake2]); }
-        if (typeof st.dir2 === 'string') or.oppDir = st.dir2;
-      } else {
-        if (Array.isArray(st.snake1) && st.snake1.length) { oppSnakeRef.current = st.snake1; setOpponentSnake([...st.snake1]); }
-        if (typeof st.dir1 === 'string') or.oppDir = st.dir1;
-      }
-      if (st.food && st.food.x !== undefined) { foodRef.current = st.food; setFood(st.food); setOnlineFood(st.food); }
-    }, MOVE_DELAY);
-    return () => clearInterval(pollInterval);
-  }, [mode, onlineUI]);
 
   useEffect(() => {
     return () => {
       if (orRef.current.tickRef) clearInterval(orRef.current.tickRef);
       if (orRef.current.pollRef) clearInterval(orRef.current.pollRef);
+      if (orRef.current.topic) unsubscribe(orRef.current.topic);
     };
   }, []);
 
   const switchMode = (m: "single" | "online") => {
     if (orRef.current.tickRef) clearInterval(orRef.current.tickRef);
     if (orRef.current.pollRef) clearInterval(orRef.current.pollRef);
+    if (orRef.current.topic) unsubscribe(orRef.current.topic);
     orRef.current.started = false;
     setMode(m); setOnlineUI('idle'); restart(); setOpponentSnake([]); setDead2(false);
   };

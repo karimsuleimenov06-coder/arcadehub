@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { subscribe, unsubscribe, publish } from "../lib/mqtt";
 
 const W = 640, H = 400;
 const PADDLE_W = 10, PADDLE_H = 60, BALL_R = 8;
@@ -35,7 +36,7 @@ export default function PongGame() {
   const keysRef = useRef(new Set<string>());
   const diffRef = useRef(diff); diffRef.current = diff;
   const touchRef = useRef({ p1: 0, p2: 0 });
-  const onlineRef = useRef({ roomCode: '', myName: '', myIdx: 0, opponentY: H/2 - PADDLE_H/2, oppTargetY: H/2 - PADDLE_H/2, pollRef: null as any, syncRef: null as any, started: false });
+  const onlineRef = useRef({ roomCode: '', myName: '', myIdx: 0, opponentY: H/2 - PADDLE_H/2, oppTargetY: H/2 - PADDLE_H/2, ballTarget: null as any, pollRef: null as any, syncRef: null as any, pubRef: null as any, topic: '', started: false });
   const [onlineUI, setOnlineUI] = useState<'idle'|'lobby'|'playing'>('idle');
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -109,18 +110,27 @@ export default function PongGame() {
         }
       }
 
-      s.ball.x += s.ball.vx; s.ball.y += s.ball.vy;
-      if (s.ball.y - BALL_R < 0 || s.ball.y + BALL_R > H) s.ball.vy *= -1;
+      if (mode === 'online' && or.myIdx === 1) {
+        const t = or.ballTarget;
+        if (t) {
+          const dx = t.x - s.ball.x, dy = t.y - s.ball.y;
+          s.ball.x += dx * 0.5; s.ball.y += dy * 0.5;
+          if (Math.abs(dx) < 1.5 && Math.abs(dy) < 1.5) { s.ball.x = t.x; s.ball.y = t.y; }
+        }
+      } else {
+        s.ball.x += s.ball.vx; s.ball.y += s.ball.vy;
+        if (s.ball.y - BALL_R < 0 || s.ball.y + BALL_R > H) s.ball.vy *= -1;
 
-      if (s.ball.x - BALL_R < PADDLE_W && s.ball.y > s.p1.y && s.ball.y < s.p1.y + PADDLE_H && s.ball.vx < 0) {
-        s.ball.vx *= -1.05; s.ball.vy = (s.ball.y - (s.p1.y + PADDLE_H/2)) / (PADDLE_H/2) * SPEED; s.ball.x = PADDLE_W + BALL_R;
-      }
-      if (s.ball.x + BALL_R > W - PADDLE_W && s.ball.y > s.p2.y && s.ball.y < s.p2.y + PADDLE_H && s.ball.vx > 0) {
-        s.ball.vx *= -1.05; s.ball.vy = (s.ball.y - (s.p2.y + PADDLE_H/2)) / (PADDLE_H/2) * SPEED; s.ball.x = W - PADDLE_W - BALL_R;
-      }
+        if (s.ball.x - BALL_R < PADDLE_W && s.ball.y > s.p1.y && s.ball.y < s.p1.y + PADDLE_H && s.ball.vx < 0) {
+          s.ball.vx *= -1.05; s.ball.vy = (s.ball.y - (s.p1.y + PADDLE_H/2)) / (PADDLE_H/2) * SPEED; s.ball.x = PADDLE_W + BALL_R;
+        }
+        if (s.ball.x + BALL_R > W - PADDLE_W && s.ball.y > s.p2.y && s.ball.y < s.p2.y + PADDLE_H && s.ball.vx > 0) {
+          s.ball.vx *= -1.05; s.ball.vy = (s.ball.y - (s.p2.y + PADDLE_H/2)) / (PADDLE_H/2) * SPEED; s.ball.x = W - PADDLE_W - BALL_R;
+        }
 
-      if (s.ball.x < -50) { s.p2.score++; updateScore(s.p1.score, s.p2.score); resetBall(-1); }
-      else if (s.ball.x > W + 50) { s.p1.score++; updateScore(s.p1.score, s.p2.score); resetBall(1); }
+        if (s.ball.x < -50) { s.p2.score++; updateScore(s.p1.score, s.p2.score); resetBall(-1); }
+        else if (s.ball.x > W + 50) { s.p1.score++; updateScore(s.p1.score, s.p2.score); resetBall(1); }
+      }
 
       ctx.clearRect(0, 0, W, H); ctx.fillStyle = "rgba(0,243,255,0.05)"; ctx.fillRect(0, 0, W, H);
       ctx.setLineDash([8,8]); ctx.strokeStyle = "rgba(0,243,255,0.15)"; ctx.lineWidth = 2;
@@ -140,6 +150,35 @@ export default function PongGame() {
     touchRef.current[player === 1 ? "p1" : "p2"] = dy * SPEED * 2;
   }, []);
 
+  const startPongRealtime = (or: typeof onlineRef.current, uname: string, myIdx: number) => {
+    const topic = `arcadehub/pong/${or.roomCode}`;
+    or.topic = topic;
+    subscribe(topic, (msg) => {
+      if (msg.who === myIdx) return;
+      if (myIdx === 0) {
+        if (typeof msg.p2y === 'number') or.oppTargetY = msg.p2y;
+      } else {
+        if (typeof msg.p1y === 'number') or.oppTargetY = msg.p1y;
+        if (msg.ball && typeof msg.ball.x === 'number' && typeof msg.ball.vx === 'number') {
+          const sb = stateRef.current;
+          if (sb.ball.vx * msg.ball.vx < 0 || Math.abs(msg.ball.x - sb.ball.x) > 60 || Math.abs(msg.ball.y - sb.ball.y) > 60) {
+            sb.ball = { ...msg.ball };
+          }
+          or.ballTarget = { x: msg.ball.x, y: msg.ball.y };
+        }
+        if (msg.score && typeof msg.score.p1 === 'number') updateScore(msg.score.p1, msg.score.p2);
+      }
+    });
+    or.pubRef = setInterval(() => {
+      if (myIdx === 0) {
+        const b = stateRef.current.ball;
+        publish(topic, { who: 0, ball: { x: b.x, y: b.y, vx: b.vx, vy: b.vy }, p1y: stateRef.current.p1.y, score: { p1: stateRef.current.p1.score, p2: stateRef.current.p2.score } });
+      } else {
+        publish(topic, { who: 1, p2y: stateRef.current.p1.y });
+      }
+    }, 50);
+  };
+
   const createPongRoom = async () => {
     const u0 = 'Игрок1'; const r = await apiCall({ action: 'create', game: 'pong', username: u0 });
     if (!r.ok) return;
@@ -157,13 +196,9 @@ export default function PongGame() {
         stateRef.current.running = true;
         stateRef.current.p1 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
         stateRef.current.p2 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
+        setScore({ p1: 0, p2: 0 }); setWinner(null);
         resetBall(1);
-        or.syncRef = setInterval(async () => {
-          const st = await apiCall({ action: 'status', roomCode: r.room.id });
-          if (st.ok && st.room.state) { or.oppTargetY = st.room.state.p2y || H/2 - PADDLE_H/2; }
-          const b = stateRef.current.ball;
-          apiCall({ action: 'move', roomCode: r.room.id, username: uname, move: { dy: stateRef.current.p1.dy, y: stateRef.current.p1.y, ball: { x: b.x, y: b.y, vx: b.vx, vy: b.vy } } });
-        }, 100);
+        startPongRealtime(or, uname, 0);
       }
     }, 1000);
     or.pollRef = pollId;
@@ -180,34 +215,26 @@ export default function PongGame() {
     stateRef.current.running = true;
     stateRef.current.p1 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
     stateRef.current.p2 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
-    resetBall(1);
-    or.syncRef = setInterval(async () => {
-      const st = await apiCall({ action: 'status', roomCode: code.toUpperCase() });
-      if (st.ok && st.room.state) {
-        or.oppTargetY = st.room.state.p1y || H/2 - PADDLE_H/2;
-        const bb = st.room.state.ball;
-        if (bb && typeof bb.x === 'number' && typeof bb.vx === 'number') {
-          const sb = stateRef.current;
-          if (sb.ball.vx * bb.vx < 0 || Math.abs(bb.x - sb.ball.x) > 50 || Math.abs(bb.y - sb.ball.y) > 50) {
-            sb.ball = { x: bb.x, y: bb.y, vx: bb.vx, vy: bb.vy };
-          }
-        }
-      }
-      apiCall({ action: 'move', roomCode: code.toUpperCase(), username: uname, move: { dy: stateRef.current.p1.dy, y: stateRef.current.p1.y } });
-    }, 100);
+    setScore({ p1: 0, p2: 0 }); setWinner(null);
+    startPongRealtime(or, uname, 1);
   };
 
   useEffect(() => {
     return () => {
       if (onlineRef.current.pollRef) clearInterval(onlineRef.current.pollRef);
       if (onlineRef.current.syncRef) clearInterval(onlineRef.current.syncRef);
+      if (onlineRef.current.pubRef) clearInterval(onlineRef.current.pubRef);
+      if (onlineRef.current.topic) unsubscribe(onlineRef.current.topic);
     };
   }, []);
 
   const switchMode = (m: Mode) => {
-    if (onlineRef.current.pollRef) clearInterval(onlineRef.current.pollRef);
-    if (onlineRef.current.syncRef) clearInterval(onlineRef.current.syncRef);
-    onlineRef.current = { ...onlineRef.current, pollRef: null, syncRef: null, started: false };
+    const or = onlineRef.current;
+    if (or.pollRef) clearInterval(or.pollRef);
+    if (or.syncRef) clearInterval(or.syncRef);
+    if (or.pubRef) clearInterval(or.pubRef);
+    if (or.topic) unsubscribe(or.topic);
+    onlineRef.current = { ...onlineRef.current, pollRef: null, syncRef: null, pubRef: null, topic: '', ballTarget: null, started: false };
     setMode(m); setOnlineUI('idle');
     if (m !== 'online') startGame();
   };
