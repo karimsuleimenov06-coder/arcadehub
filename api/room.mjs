@@ -79,7 +79,7 @@ function pokerDeal(s) {
   s.deck = d.slice(4)
   s.p1cards = [d[0], d[1]]
   s.p2cards = [d[2], d[3]]
-  s.p1chips = 1000; s.p2chips = 1000
+  s.p1chips = 990; s.p2chips = 980
   s.p1bet = 10; s.p2bet = 20
   s.p1folded = false; s.p2folded = false
   s.p1allin = false; s.p2allin = false
@@ -237,8 +237,15 @@ export default async function handler(req, res) {
           dy = move.dy || 0
           if (move.ball) room.state.ball = move.ball
         }
-        if (pi === 0) { room.state.p1dy = dy; room.state.p1y = Math.max(0, Math.min(340, (room.state.p1y || 170) + dy)) }
-        else { room.state.p2dy = dy; room.state.p2y = Math.max(0, Math.min(340, (room.state.p2y || 170) + dy)) }
+        if (pi === 0) {
+          room.state.p1dy = dy
+          if (typeof move?.y === 'number') room.state.p1y = Math.max(0, Math.min(340, move.y))
+          else room.state.p1y = Math.max(0, Math.min(340, (room.state.p1y || 170) + dy))
+        } else {
+          room.state.p2dy = dy
+          if (typeof move?.y === 'number') room.state.p2y = Math.max(0, Math.min(340, move.y))
+          else room.state.p2y = Math.max(0, Math.min(340, (room.state.p2y || 170) + dy))
+        }
       }
 
       if (room.game === 'snake') {
@@ -250,6 +257,7 @@ export default async function handler(req, res) {
         if (pi === 0) {
           room.state.dir1 = dir
           if (move && move.snake) room.state.snake1 = move.snake
+          if (move && move.food && move.food.x !== undefined) room.state.food = move.food
         } else {
           room.state.dir2 = dir
           if (move && move.snake) room.state.snake2 = move.snake

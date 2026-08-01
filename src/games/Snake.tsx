@@ -58,7 +58,7 @@ export default function SnakeGame() {
   const [dead2, setDead2] = useState(false);
   const [p1Name, setP1Name] = useState('');
   const [p2Name, setP2Name] = useState('');
-  const orRef = useRef({ roomCode: '', myName: '', isP1: true, tickRef: null as any, pollRef: null as any, dir: 'RIGHT' as Direction, oppDir: 'LEFT' as Direction, foodEaten: false });
+  const orRef = useRef({ roomCode: '', myName: '', isP1: true, tickRef: null as any, pollRef: null as any, dir: 'RIGHT' as Direction, oppDir: 'LEFT' as Direction, foodEaten: false, started: false });
   const mySnakeRef = useRef<Cell[]>(INIT);
   const oppSnakeRef = useRef<Cell[]>([]);
   const foodRef = useRef<Cell>({ x: 15, y: 10 });
@@ -157,7 +157,10 @@ export default function SnakeGame() {
   };
 
   const startOnlineGame = (rc: string, uname: string, isP1: boolean) => {
-    const or = orRef.current; or.roomCode = rc; or.myName = uname; or.isP1 = isP1;
+    const or = orRef.current;
+    if (or.started) return;
+    or.started = true;
+    or.roomCode = rc; or.myName = uname; or.isP1 = isP1;
     mySnakeRef.current = isP1 ? [{ x: 10, y: 10 }] : [{ x: 5, y: 5 }];
     oppSnakeRef.current = isP1 ? [{ x: 5, y: 5 }] : [{ x: 10, y: 10 }];
     foodRef.current = { x: 15, y: 10 };
@@ -241,6 +244,7 @@ export default function SnakeGame() {
   const switchMode = (m: "single" | "online") => {
     if (orRef.current.tickRef) clearInterval(orRef.current.tickRef);
     if (orRef.current.pollRef) clearInterval(orRef.current.pollRef);
+    orRef.current.started = false;
     setMode(m); setOnlineUI('idle'); restart(); setOpponentSnake([]); setDead2(false);
   };
 

@@ -330,7 +330,7 @@ export default function PokerGame(){
           <span className="text-xs text-[var(--neon-yellow)]">{myChips}</span>
         </div>
         <div className="flex gap-2 ml-auto">
-          {(!myFolded?myCards:[]).map((c,i)=><div key={i} className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold ${cr(c)}`}
+          {(!myFolded?myCards:[]).map((c:Card,i:number)=><div key={i} className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold ${cr(c)}`}
             style={{background:"linear-gradient(145deg,#1a1a2e,#16213e)",border:"1px solid rgba(0,243,255,0.15)"}}>
             {cs(c)}
           </div>)}

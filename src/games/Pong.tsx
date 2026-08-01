@@ -22,7 +22,6 @@ function apiCall(body: any) { return fetch(API, { method:'POST', headers:{'Conte
 
 export default function PongGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
   const stateRef = useRef({
     ball: { x: W/2, y: H/2, vx: SPEED, vy: SPEED },
     p1: { y: H/2 - PADDLE_H/2, score: 0, dy: 0 },
@@ -36,7 +35,7 @@ export default function PongGame() {
   const keysRef = useRef(new Set<string>());
   const diffRef = useRef(diff); diffRef.current = diff;
   const touchRef = useRef({ p1: 0, p2: 0 });
-  const onlineRef = useRef({ roomCode: '', myName: '', myIdx: 0, opponentY: H/2 - PADDLE_H/2, oppTargetY: H/2 - PADDLE_H/2, pollRef: null as any, syncRef: null as any });
+  const onlineRef = useRef({ roomCode: '', myName: '', myIdx: 0, opponentY: H/2 - PADDLE_H/2, oppTargetY: H/2 - PADDLE_H/2, pollRef: null as any, syncRef: null as any, started: false });
   const [onlineUI, setOnlineUI] = useState<'idle'|'lobby'|'playing'>('idle');
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
@@ -77,7 +76,7 @@ export default function PongGame() {
     const ctx = canvas.getContext("2d")!;
     const loop = () => {
       const s = stateRef.current; const or = onlineRef.current;
-      if (!s.running) { animRef.current = requestAnimationFrame(loop); return; }
+      if (!s.running) return;
 
       const keys = keysRef.current;
       if (mode === 'online') {
@@ -132,11 +131,10 @@ export default function PongGame() {
       ctx.fillRect(W - PADDLE_W, s.p2.y, PADDLE_W, PADDLE_H); ctx.shadowBlur = 0;
       ctx.beginPath(); ctx.arc(s.ball.x, s.ball.y, BALL_R, 0, Math.PI * 2);
       ctx.fillStyle = "#fff"; ctx.shadowBlur = 20; ctx.shadowColor = "#fff"; ctx.fill(); ctx.shadowBlur = 0;
-      animRef.current = requestAnimationFrame(loop);
     };
-    animRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [mode, resetBall, updateScore]);
+    const frameId = setInterval(loop, 1000 / 60);
+    return () => clearInterval(frameId);
+  }, [mode, onlineUI, resetBall, updateScore]);
 
   const handleTouch = useCallback((player: 1 | 2, dy: number) => {
     touchRef.current[player === 1 ? "p1" : "p2"] = dy * SPEED * 2;
@@ -154,6 +152,8 @@ export default function PongGame() {
       if (s.room.status === 'playing') {
         setOpponent(s.room.players[1]?.username || ''); setOnlineUI('playing');
         setMySymbol(0); clearInterval(pollId);
+        if (or.started) return;
+        or.started = true;
         stateRef.current.running = true;
         stateRef.current.p1 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
         stateRef.current.p2 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
@@ -162,7 +162,7 @@ export default function PongGame() {
           const st = await apiCall({ action: 'status', roomCode: r.room.id });
           if (st.ok && st.room.state) { or.oppTargetY = st.room.state.p2y || H/2 - PADDLE_H/2; }
           const b = stateRef.current.ball;
-          apiCall({ action: 'move', roomCode: r.room.id, username: uname, move: { dy: stateRef.current.p1.dy, ball: { x: b.x, y: b.y, vx: b.vx, vy: b.vy } } });
+          apiCall({ action: 'move', roomCode: r.room.id, username: uname, move: { dy: stateRef.current.p1.dy, y: stateRef.current.p1.y, ball: { x: b.x, y: b.y, vx: b.vx, vy: b.vy } } });
         }, 100);
       }
     }, 1000);
@@ -175,6 +175,8 @@ export default function PongGame() {
     const uname = r.room.players[1]?.username || u0;
     setRoomCode(code.toUpperCase()); setMySymbol(1); setOpponent(r.room.players[0]?.username || ''); setOnlineUI('playing');
     const or = onlineRef.current; or.roomCode = code.toUpperCase(); or.myName = uname; or.myIdx = 1;
+    if (or.started) return;
+    or.started = true;
     stateRef.current.running = true;
     stateRef.current.p1 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
     stateRef.current.p2 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
@@ -191,7 +193,7 @@ export default function PongGame() {
           }
         }
       }
-      apiCall({ action: 'move', roomCode: code.toUpperCase(), username: uname, move: { dy: stateRef.current.p1.dy } });
+      apiCall({ action: 'move', roomCode: code.toUpperCase(), username: uname, move: { dy: stateRef.current.p1.dy, y: stateRef.current.p1.y } });
     }, 100);
   };
 
@@ -205,7 +207,7 @@ export default function PongGame() {
   const switchMode = (m: Mode) => {
     if (onlineRef.current.pollRef) clearInterval(onlineRef.current.pollRef);
     if (onlineRef.current.syncRef) clearInterval(onlineRef.current.syncRef);
-    onlineRef.current = { ...onlineRef.current, pollRef: null, syncRef: null };
+    onlineRef.current = { ...onlineRef.current, pollRef: null, syncRef: null, started: false };
     setMode(m); setOnlineUI('idle');
     if (m !== 'online') startGame();
   };
