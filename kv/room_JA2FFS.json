@@ -1,0 +1,1 @@
+{"id":"JA2FFS","game":"tictactoe","status":"waiting","players":[{"username":"LiveTester","ready":false,"wScore":0},{"username":null,"ready":false,"wScore":0}],"turn":0,"moves":[],"createdAt":1785608482719,"state":{"board":[null,null,null,null,null,null,null,null,null],"winner":null}}
