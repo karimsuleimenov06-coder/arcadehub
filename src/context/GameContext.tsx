@@ -123,7 +123,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         })
           .then(r => r.json())
           .then(res => {
-            if (res.ok) window.dispatchEvent(new CustomEvent('arcadehub:leaderboard', { detail: { game: gameId } }))
+            if (res.ok) window.dispatchEvent(new CustomEvent('arcadehub:leaderboard', { detail: { game: gameId, entries: res.entries } }))
           })
           .catch(() => {})
       }

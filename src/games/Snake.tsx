@@ -104,7 +104,7 @@ export default function SnakeGame() {
       });
     }, MOVE_DELAY);
     return () => clearInterval(interval);
-  }, [mode, gameOver, food, moveSnake]);
+  }, [mode, gameOver, food, moveSnake, started]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

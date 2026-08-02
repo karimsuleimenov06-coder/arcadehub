@@ -29,7 +29,14 @@ export default function Leaderboard({ gameId }: { gameId: string }) {
     load();
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (!detail || detail.game === gameId) load();
+      if (!detail) return;
+      if (detail.game !== gameId) return;
+      if (Array.isArray(detail.entries)) {
+        setEntries(detail.entries as LeaderboardEntry[]);
+        setLoading(false);
+      } else {
+        load();
+      }
     };
     window.addEventListener("arcadehub:leaderboard", handler);
     return () => window.removeEventListener("arcadehub:leaderboard", handler);
