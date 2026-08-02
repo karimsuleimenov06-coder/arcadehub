@@ -47,6 +47,7 @@ export default function SnakeGame() {
   const [saved, setSaved] = useState(false);
   const lastMoveRef = useRef(0);
   const dirRef = useRef<Direction>("RIGHT");
+  const startedRef = useRef(false);
   const scoreRef = useRef(0);
   const [mode, setMode] = useState<"single"|"online">("single");
   const [onlineUI, setOnlineUI] = useState<'idle'|'lobby'|'playing'>('idle');
@@ -80,10 +81,13 @@ export default function SnakeGame() {
   }, []);
 
   const handleDirection = useCallback((d: Direction) => {
-    if (d === "UP" && dirRef.current === "DOWN") return;
-    if (d === "DOWN" && dirRef.current === "UP") return;
-    if (d === "LEFT" && dirRef.current === "RIGHT") return;
-    if (d === "RIGHT" && dirRef.current === "LEFT") return;
+    if (startedRef.current) {
+      if (d === "UP" && dirRef.current === "DOWN") return;
+      if (d === "DOWN" && dirRef.current === "UP") return;
+      if (d === "LEFT" && dirRef.current === "RIGHT") return;
+      if (d === "RIGHT" && dirRef.current === "LEFT") return;
+    }
+    startedRef.current = true;
     setStarted(true);
     dirRef.current = d;
     setDir(d);
@@ -123,6 +127,7 @@ export default function SnakeGame() {
   const restart = () => {
     setSnake(INIT); setFood(randomFood(INIT)); setDir("RIGHT"); dirRef.current = "RIGHT";
     setGameOver(false); setScore(0); setStarted(false); setSaved(false); lastMoveRef.current = 0;
+    startedRef.current = false;
     mySnakeRef.current = INIT;
   };
 
