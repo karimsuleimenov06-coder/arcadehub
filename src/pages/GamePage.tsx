@@ -5,12 +5,14 @@ import SnakeGame from "../games/Snake";
 import TicTacToeGame from "../games/TicTacToe";
 import PongGame from "../games/Pong";
 import PokerGame from "../games/Poker";
+import Game2048 from "../games/Game2048";
 
 const gameComponents: Record<string, React.FC> = {
   snake: SnakeGame,
   tictactoe: TicTacToeGame,
   pong: PongGame,
   poker: PokerGame,
+  "2048": Game2048,
 };
 
 export default function GamePage() {
