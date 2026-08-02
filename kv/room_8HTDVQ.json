@@ -1,0 +1,1 @@
+{"id":"8HTDVQ","game":"tictactoe","status":"waiting","players":[{"username":"карм","ready":false,"wScore":0},{"username":null,"ready":false,"wScore":0}],"turn":0,"moves":[],"createdAt":1785651893943,"state":{"board":[null,null,null,null,null,null,null,null,null],"winner":null}}
