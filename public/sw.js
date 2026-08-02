@@ -1,4 +1,4 @@
-const CACHE = 'arcadehub-v15';
+const CACHE = 'arcadehub-v16';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
