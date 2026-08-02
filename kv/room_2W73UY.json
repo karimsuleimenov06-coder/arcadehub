@@ -1,0 +1,1 @@
+{"id":"2W73UY","game":"tictactoe","status":"waiting","players":[{"username":"CacheT","ready":false,"wScore":0},{"username":null,"ready":false,"wScore":0}],"turn":0,"moves":[],"createdAt":1785653961856,"state":{"board":[null,null,null,null,null,null,null,null,null],"winner":null}}
