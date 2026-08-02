@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useGame } from "../context/GameContext";
 import { subscribe, unsubscribe, publish } from "../lib/mqtt";
 
 const W = 640, H = 400;
@@ -22,7 +23,9 @@ const API = '/api/room'
 function apiCall(body: any) { return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()) }
 
 export default function PongGame() {
+  const { addScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const submittedRef = useRef(false);
   const stateRef = useRef({
     ball: { x: W/2, y: H/2, vx: SPEED, vy: SPEED },
     p1: { y: H/2 - PADDLE_H/2, score: 0, dy: 0 },
@@ -53,6 +56,7 @@ export default function PongGame() {
     s.p1 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
     s.p2 = { y: H/2 - PADDLE_H/2, score: 0, dy: 0 };
     setScore({ p1: 0, p2: 0 }); setWinner(null); resetBall(1); s.running = true;
+    submittedRef.current = false;
   }, [resetBall]);
 
   const updateScore = useCallback((p1: number, p2: number) => {
@@ -60,6 +64,12 @@ export default function PongGame() {
     if (p1 >= WIN_SCORE) { setWinner(1); stateRef.current.running = false; }
     if (p2 >= WIN_SCORE) { setWinner(2); stateRef.current.running = false; }
   }, []);
+
+  useEffect(() => {
+    if (winner === null || submittedRef.current || mode === "online") return;
+    submittedRef.current = true;
+    addScore("pong", winner === 1 ? 100 : 50);
+  }, [winner, mode, addScore]);
 
   useEffect(() => {
     if (!stateRef.current.running && winner === null && mode !== 'online') startGame();

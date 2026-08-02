@@ -6,6 +6,7 @@ import TicTacToeGame from "../games/TicTacToe";
 import PongGame from "../games/Pong";
 import PokerGame from "../games/Poker";
 import Game2048 from "../games/Game2048";
+import Leaderboard from "../components/Leaderboard";
 
 const gameComponents: Record<string, React.FC> = {
   snake: SnakeGame,
@@ -73,6 +74,8 @@ export default function GamePage() {
             </div>
           </div>
         )}
+
+        {GameComponent && <Leaderboard gameId={game.id} />}
       </div>
     </motion.div>
   );

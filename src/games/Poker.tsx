@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useGame } from "../context/GameContext";
 
 const SUITS = ["♠","♥","♦","♣"];
 const RANKS = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
@@ -25,6 +27,8 @@ const API = '/api/room'
 function apiCall(body: any) { return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json()) }
 
 export default function PokerGame(){
+  const { user } = useAuth();
+  const { addScore } = useGame();
   const [phase,setPhase]=useState<"idle"|"play"|"result">("idle");
   const [players,setPlayers]=useState<P[]>([]);
   const [community,setCommunity]=useState<Card[]>([]);
@@ -57,6 +61,13 @@ export default function PokerGame(){
   const pollRef=useRef<ReturnType<typeof setInterval>>();
   const opollRef=useRef<ReturnType<typeof setInterval>>();
   const myNameRef=useRef('Игрок1');
+  const submittedRef=useRef(false);
+
+  useEffect(()=>{
+    if(phase!=="result"||!result||!result.win||submittedRef.current||mode!=="ai")return;
+    submittedRef.current=true;
+    if(user)addScore("poker",Math.max(0,playersRef.current[0]?.chips||0));
+  },[phase,result,user,addScore,mode]);
 
   const ct=()=>{if(ti.current){clearInterval(ti.current);ti.current=undefined}};
 
@@ -134,6 +145,7 @@ export default function PokerGame(){
 
   const startGame=useCallback((d:Difficulty)=>{
     setDiff(d);ct();setResult(null);setDealt(false);setSr(false);
+    submittedRef.current=false;
     const dk=shuffle([...Array(52)].map((_,i)=>({rank:RANKS[i%13],suit:SUITS[Math.floor(i/13)]})));
     deckRef.current=dk.slice(10);
     setPlayers([

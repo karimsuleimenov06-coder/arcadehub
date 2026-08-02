@@ -2,9 +2,10 @@ import http from 'http'
 import crypto from 'crypto'
 import { randomBytes } from 'crypto'
 import roomHandler from './api/room.mjs'
+import leaderboardHandler from './api/leaderboard.mjs'
 
 const store = {}
-const JWT_SECRET = process.env.JWT_SECRET || 'arcadehub-secret-key-2026'
+const JWT_SECRET = process.env.JWT_SECRET || 'arcadehub-secret'
 
 function jwtSign(payload) {
   const header = { alg: 'HS256', typ: 'JWT' }
@@ -100,8 +101,8 @@ const server = http.createServer(async (req, res) => {
         } else {
           result = await handleProgress(req.method, req.headers.authorization)
         }
-      } else if (path === '/api/room') {
-        // Delegate to the same logic that runs in production (api/room.mjs)
+      } else if (path === '/api/room' || path === '/api/leaderboard.mjs') {
+        // Delegate to the same logic that runs in production (api/*.mjs)
         let status = 500
         let json = { error: 'Server error' }
         const mockRes = {
@@ -110,8 +111,14 @@ const server = http.createServer(async (req, res) => {
           setHeader() { return mockRes },
           end() {},
         }
-        const mockReq = { method: req.method, body: parsedBody }
-        await roomHandler(mockReq, mockRes)
+        const mockReq = {
+          method: req.method,
+          body: parsedBody,
+          headers: req.headers,
+          query: { game: url.searchParams.get('game') || parsedBody.game || '' },
+        }
+        const handler = path === '/api/room' ? roomHandler : leaderboardHandler
+        await handler(mockReq, mockRes)
         result = { status, data: json }
       }
 

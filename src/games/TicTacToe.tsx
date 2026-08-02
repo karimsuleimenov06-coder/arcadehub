@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useGame } from "../context/GameContext";
 
 type Player = "X" | "O";
 type Board = (Player | null)[];
@@ -49,6 +50,7 @@ async function apiCall(body: any) {
 
 export default function TicTacToeGame() {
   const { user } = useAuth();
+  const { addScore } = useGame();
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [turn, setTurn] = useState<Player>("X");
   const [winner, setWinner] = useState<null | Player | "draw">(null);
@@ -57,6 +59,7 @@ export default function TicTacToeGame() {
   const [score, setScore] = useState({ X: 0, O: 0, draw: 0 });
   const boardRef = useRef(board); boardRef.current = board;
   const turnRef = useRef(turn); turnRef.current = turn;
+  const submittedRef = useRef(false);
 
   const [roomCode, setRoomCode] = useState("");
   const [mySymbol, setMySymbol] = useState<Player>("X");
@@ -102,7 +105,7 @@ export default function TicTacToeGame() {
     setTurn(prev => prev === "X" ? "O" : "X");
   }, [mode, mySymbol, roomCode, myName]);
 
-  const restart = () => { setBoard(Array(9).fill(null)); setTurn("X"); setWinner(null); };
+  const restart = () => { setBoard(Array(9).fill(null)); setTurn("X"); setWinner(null); submittedRef.current = false; };
 
   const switchMode = (m: "ai" | "local" | "online") => {
     stopPoll(); setMode(m);
@@ -110,6 +113,12 @@ export default function TicTacToeGame() {
   };
 
   useEffect(() => { if (!winner) return; setScore(prev => { const key = winner === "draw" ? "draw" : winner; return { ...prev, [key]: prev[key] + 1 }; }); }, [winner]);
+
+  useEffect(() => {
+    if (!winner || submittedRef.current || mode === "online") return;
+    submittedRef.current = true;
+    addScore("tictactoe", winner === "X" ? 10 : winner === "O" ? 5 : 3);
+  }, [winner, mode, addScore]);
 
   const createRoom = async () => {
     const uname = user?.username || 'Игрок1';

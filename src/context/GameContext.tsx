@@ -113,6 +113,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
           },
           body: JSON.stringify({ data: updated }),
         }).catch(() => {})
+        fetch('/api/leaderboard.mjs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user.token}`,
+          },
+          body: JSON.stringify({ game: gameId, score }),
+        })
+          .then(r => r.json())
+          .then(res => {
+            if (res.ok) window.dispatchEvent(new CustomEvent('arcadehub:leaderboard', { detail: { game: gameId } }))
+          })
+          .catch(() => {})
       }
       return updated
     })
