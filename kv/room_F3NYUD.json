@@ -1,0 +1,1 @@
+{"id":"F3NYUD","game":"snake","status":"waiting","players":[{"username":"Игрок1","ready":false,"wScore":0},{"username":null,"ready":false,"wScore":0}],"turn":0,"moves":[],"createdAt":1785671664226,"state":{"snake1":[{"x":10,"y":10}],"snake2":[{"x":5,"y":5}],"dir1":"RIGHT","dir2":"LEFT","food":{"x":15,"y":10}}}
