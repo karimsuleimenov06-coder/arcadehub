@@ -268,7 +268,6 @@ export default function PokerGame(){
     const s=onlineState;
     if(!s)return<div className="text-center text-sm text-[var(--text-muted)] py-8">Загрузка...</div>;
     const myCards=isP1?s.p1cards||[]:s.p2cards||[];
-    const oppCards=isP1?s.p2cards||[]:s.p1cards||[];
     const myChips=isP1?s.p1chips: s.p2chips;
     const oppChips=isP1?s.p2chips: s.p1chips;
     const myBet=isP1?s.p1bet||0: s.p2bet||0;
@@ -306,9 +305,7 @@ export default function PokerGame(){
           <span className="text-[10px] text-[var(--text-muted)]">Противник</span>
           <div className="flex gap-0.5">
             {[0,1].map(j=><div key={j} className={`w-3 h-4 rounded-sm ${oppFolded?'opacity-20':''}`}
-              style={{background:oppFolded?'var(--glass-bg)':oppCards[j]?'linear-gradient(145deg,#1a1a2e,#16213e)':'var(--glass-bg)',border:"1px solid var(--glass-border)"}}>
-              {oppCards[j]&&<span className={`text-[6px] block ${cr(oppCards[j])}`}>{cs(oppCards[j])}</span>}
-            </div>)}
+              style={{background:"repeating-linear-gradient(45deg,#16213e,#16213e 2px,#1a1a2e 2px,#1a1a2e 4px)",border:"1px solid rgba(0,243,255,0.3)"}}/>)}
           </div>
         </div>
       </div>
