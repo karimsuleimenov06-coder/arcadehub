@@ -1,1 +1,1 @@
-{"gamesPlayed":2,"totalScore":20,"highScores":{"tictactoe":10},"coins":2,"xp":4,"history":[{"gameId":"tictactoe","score":10,"date":1785671456377},{"gameId":"tictactoe","score":10,"date":1785671043344}]}
+{"gamesPlayed":3,"totalScore":20,"highScores":{"tictactoe":10,"snake":0},"coins":3,"xp":5,"history":[{"gameId":"snake","score":0,"date":1785671594107},{"gameId":"tictactoe","score":10,"date":1785671456377},{"gameId":"tictactoe","score":10,"date":1785671043344}]}
