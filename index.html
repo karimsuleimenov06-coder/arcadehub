@@ -25,20 +25,24 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(regs) {
-          for (var r of regs) r.unregister();
-        });
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js?v=11').then(function(reg) {
+          navigator.serviceWorker.register('/sw.js?v=22').then(function(reg) {
             reg.addEventListener('updatefound', function() {
               var newWorker = reg.installing;
+              if (!newWorker) return;
               newWorker.addEventListener('statechange', function() {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  if (confirm('Доступна новая версия! Обновить?')) window.location.reload();
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
               });
             });
           }).catch(function(){});
+        });
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
         });
       }
     </script>

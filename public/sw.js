@@ -1,4 +1,4 @@
-const CACHE = 'arcadehub-v21';
+const CACHE = 'arcadehub-v22';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -6,6 +6,10 @@ self.addEventListener('install', (e) => {
     caches.open(CACHE).then((c) => c.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
