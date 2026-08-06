@@ -186,7 +186,7 @@ export default function SnakeGame() {
         oppSnakeRef.current = msg.snake;
         setOpponentSnake([...msg.snake]);
         const head = msg.snake[0];
-        if (!head || head.x < 0 || head.x >= SIZE || head.y < 0 || head.y >= SIZE || msg.snake.slice(1).some(s => s.x === head.x && s.y === head.y)) {
+        if (!head || head.x < 0 || head.x >= SIZE || head.y < 0 || head.y >= SIZE || msg.snake.slice(1).some((s: Cell) => s.x === head.x && s.y === head.y)) {
           dead2Ref.current = true; setDead2(true);
         }
       }

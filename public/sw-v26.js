@@ -1,4 +1,4 @@
-const CACHE = 'arcadehub-v25';
+const CACHE = 'arcadehub-v26';
 const STATIC_ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -26,10 +26,8 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(e.request.url);
 
-  // Never cache the service worker itself
-  if (url.pathname === '/sw.js') return;
+  if (url.pathname === '/sw.js' || url.pathname === '/sw-v26.js') return;
 
-  // HTML — network first (always fresh)
   if (url.pathname === '/' || url.pathname.endsWith('.html')) {
     e.respondWith(
       fetch(e.request)
@@ -45,7 +43,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Static assets — cache first, update in background
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const fetchPromise = fetch(e.request).then((res) => {

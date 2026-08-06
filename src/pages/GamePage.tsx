@@ -6,14 +6,42 @@ import TicTacToeGame from "../games/TicTacToe";
 import PongGame from "../games/Pong";
 import PokerGame from "../games/Poker";
 import Game2048 from "../games/Game2048";
+import SpaceInvaders from "../games/SpaceInvaders";
+import Asteroids from "../games/Asteroids";
+import DoodleJump from "../games/DoodleJump";
+import RocketEscape from "../games/RocketEscape";
+import ZombieSurvival from "../games/ZombieSurvival";
+import EndlessDriver from "../games/EndlessDriver";
+import Frogger from "../games/Frogger";
+import NinjaDash from "../games/NinjaDash";
+import AimTrainer from "../games/AimTrainer";
+import Dino from "../games/Dino";
+import Tetris from "../games/Tetris";
+import Minesweeper from "../games/Minesweeper";
+import Flappy from "../games/Flappy";
+import Arkanoid from "../games/Arkanoid";
 import Leaderboard from "../components/Leaderboard";
 
-const gameComponents: Record<string, React.FC> = {
+const gameComponents: Record<string, React.FC | undefined> = {
   snake: SnakeGame,
   tictactoe: TicTacToeGame,
   pong: PongGame,
   poker: PokerGame,
   "2048": Game2048,
+  "space-invaders": SpaceInvaders,
+  asteroids: Asteroids,
+  "doodle-jump": DoodleJump,
+  "rocket-escape": RocketEscape,
+  "zombie-survival": ZombieSurvival,
+  "endless-driver": EndlessDriver,
+  frogger: Frogger,
+  "ninja-dash": NinjaDash,
+  "aim-trainer": AimTrainer,
+  dino: Dino,
+  tetris: Tetris,
+  minesweeper: Minesweeper,
+  flappy: Flappy,
+  arkanoid: Arkanoid,
 };
 
 export default function GamePage() {

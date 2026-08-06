@@ -26,23 +26,25 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js?v=22').then(function(reg) {
-            reg.addEventListener('updatefound', function() {
-              var newWorker = reg.installing;
-              if (!newWorker) return;
-              newWorker.addEventListener('statechange', function() {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  newWorker.postMessage({ type: 'SKIP_WAITING' });
-                }
-              });
+          // Nuclear option: unregister ALL old SWs, clear ALL caches, then register fresh
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            var promises = registrations.map(function(reg) { return reg.unregister(); });
+            return Promise.all(promises);
+          }).then(function() {
+            return caches.keys().then(function(keys) {
+              return Promise.all(keys.map(function(k) { return caches.delete(k); }));
             });
+          }).then(function() {
+            return navigator.serviceWorker.register('/sw-v26.js');
+          }).then(function(reg) {
+            if (reg.installing) {
+              reg.installing.addEventListener('statechange', function(w) {
+                if (w.target.state === 'activated') window.location.reload();
+              });
+            } else if (reg.waiting) {
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
           }).catch(function(){});
-        });
-        var refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', function() {
-          if (refreshing) return;
-          refreshing = true;
-          window.location.reload();
         });
       }
     </script>
